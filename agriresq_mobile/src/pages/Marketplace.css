@@ -1,0 +1,45 @@
+.market-header h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.market-header p {
+  color: var(--gray-600);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.search-bar input {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  box-shadow: var(--shadow);
+  font-size: 15px;
+  margin-bottom: 16px;
+  outline: none;
+}
+
+.category-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 8px 20px;
+  border-radius: 20px;
+  border: none;
+  background: var(--white);
+  color: var(--gray-600);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--primary);
+  color: var(--white);
+}

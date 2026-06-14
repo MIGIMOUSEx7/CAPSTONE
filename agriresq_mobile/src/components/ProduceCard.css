@@ -1,0 +1,48 @@
+.produce-card {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.produce-card img {
+  width: 100px;
+  height: 100px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.produce-info h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.produce-price {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary-light);
+}
+
+.produce-loc {
+  font-size: 12px;
+  color: var(--gray-600);
+  margin: 4px 0;
+}
+
+.produce-status {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  color: var(--white);
+}
+
+.produce-status.status-green { background: var(--fresh); }
+.produce-price .discount-tag {
+  font-size: 12px;
+  color: var(--at-risk);
+  font-weight: 600;
+}

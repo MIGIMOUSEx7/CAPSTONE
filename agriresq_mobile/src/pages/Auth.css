@@ -1,0 +1,68 @@
+.auth-page {
+  background: var(--gray-50);
+  padding-top: 24px;
+}
+
+.auth-header {
+  padding: 0 16px 20px;
+}
+
+.back-link {
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 500;
+  display: inline-block;
+  margin-bottom: 16px;
+}
+
+.auth-header h2 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.auth-header p {
+  color: var(--gray-600);
+  margin-top: 4px;
+}
+
+.auth-form {
+  margin: 0 16px;
+}
+
+.role-options {
+  display: flex;
+  gap: 10px;
+}
+
+.role-chip {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid var(--gray-100);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.role-chip input { display: none; }
+
+.role-chip.active {
+  border-color: var(--primary);
+  background: rgba(0, 77, 64, 0.08);
+  color: var(--primary);
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--gray-600);
+}
+
+.auth-footer a {
+  color: var(--primary);
+  font-weight: 600;
+}

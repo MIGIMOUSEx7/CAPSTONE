@@ -1,0 +1,39 @@
+.iot-readings {
+  display: flex;
+  gap: 12px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  border-radius: var(--radius);
+  padding: 16px;
+  color: var(--white);
+}
+
+.iot-readings.compact {
+  padding: 12px;
+  gap: 8px;
+}
+
+.iot-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.iot-icon {
+  font-size: 24px;
+}
+
+.iot-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.iot-label {
+  display: block;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.compact .iot-value { font-size: 15px; }
+.compact .iot-icon { font-size: 20px; }
