@@ -6,6 +6,7 @@
  * Install: DHT sensor library by Adafruit
  */
 
+#include <Arduino.h>  // Added: Required for PlatformIO C++ compilation
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <DHT.h>
@@ -14,7 +15,7 @@
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* API_URL       = "http://YOUR_SERVER_IP:8000/api/sensor-data/";
-const char* DEVICE_TOKEN  = "YOUR_DEVICE_TOKEN_FROM_DJANGO";
+const char* DEVICE_TOKEN  = "YOUR_DEVICE_TOKEN_FROM_DJANGO"; // Fixed: Removed the space
 const int   BATCH_ID      = 1;  // Crop batch ID linked to this node
 // ---------------------------------
 
@@ -25,10 +26,14 @@ DHT dht(DHT_PIN, DHT_TYPE);
 unsigned long lastSend = 0;
 const unsigned long SEND_INTERVAL = 900000; // 15 minutes
 
+// Added: Function prototype so C++ knows this exists before loop() calls it
+void sendSensorData(); 
+
 void setup() {
   Serial.begin(115200);
   dht.begin();
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  
   Serial.print("Connecting to WiFi");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);

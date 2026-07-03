@@ -138,3 +138,6 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
 
 # IoT alert thresholds
 IOT_TEMP_ALERT_THRESHOLD = float(os.environ.get('IOT_TEMP_ALERT_THRESHOLD', '30'))
+
+
+ALLOWED_HOSTS = ['*']

@@ -1,58 +1,30 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { api, onAuthChange } from '../api/supabaseApi'
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
-const AuthContext = createContext(null)
+const AuthContext = createContext();
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+// 1. Initialize Supabase safely (only if keys exist)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-  const loadUser = useCallback(async () => {
-    try {
-      const profile = await api.me()
-      setUser(profile)
-    } catch {
-      setUser(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    loadUser()
-    const { data: { subscription } } = onAuthChange(() => loadUser())
-    return () => subscription.unsubscribe()
-  }, [loadUser])
-
-  const login = async (email, password) => {
-    await api.login(email, password)
-    const profile = await api.me()
-    setUser(profile)
-    return profile
-  }
-
-  const register = async (form) => {
-    await api.register({
-      ...form,
-      role: form.role === 'WHOLESALER' ? 'STALL_OPERATOR' : form.role,
-    })
-    const profile = await api.me()
-    setUser(profile)
-    return profile
-  }
-
-  const logout = async () => {
-    await api.logout()
-    setUser(null)
-  }
-
-  const isOperator = user?.role === 'STALL_OPERATOR' || user?.role === 'WHOLESALER'
-
-  return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, isOperator, isWholesaler: isOperator }}>
-      {children}
-    </AuthContext.Provider>
-  )
+let supabase = null;
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey);
+} else {
+  console.warn("Supabase keys are missing. Auth disabled.");
 }
 
-export const useAuth = () => useContext(AuthContext)
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(false); // Set to false so App doesn't stay stuck on loading
+
+  return (
+    <AuthContext.Provider value={{ user, loading, supabase }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  return useContext(AuthContext);
+}

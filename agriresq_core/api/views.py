@@ -9,6 +9,7 @@ from rest_framework.decorators import action, api_view, permission_classes, auth
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.parsers import BaseParser, MultiPartParser
 
 from .authentication import IoTDeviceAuthentication
 from .models import (
@@ -306,17 +307,36 @@ class IoTNodeViewSet(viewsets.ModelViewSet):
         )
 
 
+class ImageParser(BaseParser):
+    """Custom parser to receive raw image bytes directly from ESP32-CAM"""
+    media_type = 'image/jpeg'
+
+    def parse(self, stream, media_type=None, parser_context=None):
+        return stream.read()
+
+
 class AnalyzeFreshnessView(APIView):
     """POST /api/analyze-freshness/ — ESP32-CAM or mobile upload."""
     permission_classes = [AllowAny]
+    # Allow both Web Uploads (MultiPart) and ESP32 Uploads (ImageParser)
+    parser_classes = [MultiPartParser, ImageParser]
 
     def post(self, request):
-        image = request.FILES.get('image')
-        crop_type = request.data.get('crop_type', 'EGGPLANT').upper()
-        if not image:
-            return Response({'error': 'Image file required.'}, status=400)
+        # 1. Handle ESP32-CAM (Raw JPEG Bytes)
+        if request.content_type == 'image/jpeg':
+            image_bytes = request.data  # The ImageParser gives us the bytes here
+            crop_type = request.headers.get('X-Crop-Type', 'EGGPLANT').upper()
+
+        # 2. Handle React Web App / Mobile App (Multipart Form)
+        else:
+            image_file = request.FILES.get('image')
+            if not image_file:
+                return Response({'error': 'Image file required.'}, status=400)
+            image_bytes = image_file.read()
+            crop_type = request.data.get('crop_type', 'EGGPLANT').upper()
+
         from .vision import analyze_crop_image
-        result = analyze_crop_image(image.read(), crop_type)
+        result = analyze_crop_image(image_bytes, crop_type)
         return Response(result)
 
 
