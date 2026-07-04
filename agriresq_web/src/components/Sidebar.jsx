@@ -2,10 +2,12 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 
 const Sidebar = ({ onLogout }) => {
+  // Added the /ai-vision path here!
   const menuItems = [
     { path: '/', label: 'Dashboard', icon: '📊' },
     { path: '/batches', label: 'Harvest Batches', icon: '📦' },
     { path: '/sensors', label: 'Sensor Nodes', icon: '📟' },
+    { path: '/ai-vision', label: 'Live Camera', icon: '📹' }, 
     { path: '/marketplace', label: 'Marketplace', icon: '🛒' },
     { path: '/analytics', label: 'Analytics', icon: '📈' },
     { path: '/profile', label: 'My Profile', icon: '👤' },

@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include "esp_http_server.h"
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h> 
 #include <PubSubClient.h>
 
 // AI-THINKER pin configuration
@@ -28,7 +29,7 @@ const char* password = "BE2745F7";
 
 // EMQX MQTT Credentials
 const char* mqtt_server = "ce41d666.ala.asia-southeast1.emqxsl.com";
-const int mqtt_port = 1883; 
+const int mqtt_port = 8883; 
 const char* mqtt_user = "agriresq_node";
 const char* mqtt_pass = "123qweasd";
 
@@ -36,14 +37,16 @@ const char* mqtt_pass = "123qweasd";
 const char* serverURL = "http://192.168.254.113:8000/api/analyze-freshness/"; 
 
 WiFiClient wifiClient;
-PubSubClient mqttClient(wifiClient);
+WiFiClientSecure secureClient; // Required for port 8883 (SSL/TLS)
+PubSubClient mqttClient(secureClient);
 httpd_handle_t stream_httpd = NULL;
 
 void sendCamHeartbeat() {
   if (!mqttClient.connected()) {
+    // Set secure server configuration
     mqttClient.setServer(mqtt_server, mqtt_port);
     if (mqttClient.connect("CAM_NODE_01", mqtt_user, mqtt_pass)) {
-      Serial.println("✅ MQTT Heartbeat Connected");
+      Serial.println("✅ MQTT Heartbeat Connected Securely");
     }
   }
   if (mqttClient.connected()) {
@@ -66,7 +69,7 @@ void uploadImageToServer() {
   int httpResponseCode = http.POST(fb->buf, fb->len);
   if (httpResponseCode > 0) {
     Serial.printf("✅ AI Server Response (%d)\n", httpResponseCode);
-    sendCamHeartbeat(); // Trigger heartbeat after successful upload
+    sendCamHeartbeat(); 
   } else {
     Serial.printf("❌ Error: %s\n", http.errorToString(httpResponseCode).c_str());
   }
@@ -113,6 +116,10 @@ void startCameraServer(){
 
 void setup() {
   Serial.begin(115200);
+  
+  // Set Insecure to allow secure connection to EMQX without certificates
+  secureClient.setInsecure();
+  
   camera_config_t config;
   config.pin_d0 = Y2_GPIO_NUM; config.pin_d1 = Y3_GPIO_NUM; config.pin_d2 = Y4_GPIO_NUM; 
   config.pin_d3 = Y5_GPIO_NUM; config.pin_d4 = Y6_GPIO_NUM; config.pin_d5 = Y7_GPIO_NUM; 

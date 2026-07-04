@@ -10,7 +10,8 @@ import Batches from './pages/Batches';
 import Marketplace from './pages/Marketplace';
 import Profile from "./pages/Profile";
 import Sensors from './pages/Sensors';
-import Analytics from './pages/Analytics'; // <-- Add this import!
+import Analytics from './pages/Analytics'; 
+import AIVision from './pages/AIVision'; // <-- NEW: Imported the AI Vision page
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
@@ -64,7 +65,11 @@ function App() {
             <Route path="/batches" element={<Batches />} />
             <Route path="/sensors" element={<Sensors />} />
             <Route path="/marketplace" element={<Marketplace />} />
-            <Route path="/analytics" element={<Analytics />} /> {/* <-- Add this route! */}
+            <Route path="/analytics" element={<Analytics />} />
+            
+            {/* <-- NEW: Add the AI Vision route right here --> */}
+            <Route path="/ai-vision" element={<AIVision />} /> 
+            
             <Route path="/login" element={<Navigate to="/" />} />
             
             {/* Catch-all for modules we haven't built yet */}
