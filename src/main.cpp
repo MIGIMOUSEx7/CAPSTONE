@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include "esp_http_server.h"
 #include <HTTPClient.h>
+#include <PubSubClient.h>
 
 // AI-THINKER pin configuration
 #define PWDN_GPIO_NUM     32
@@ -22,43 +23,55 @@
 #define PCLK_GPIO_NUM     22
 
 // Credentials
-const char* ssid = "Calvinzeus 2.4G";
-const char* password = "gulmatico6";
+const char* ssid = "GFiber_2.4_Coverage_65DD3";
+const char* password = "BE2745F7";
 
-// ⚠️ UPDATE THIS TO YOUR LAPTOP'S IP ADDRESS ⚠️
-const char* serverURL = "http://192.168.100.212:8000/api/analyze-freshness/"; 
+// EMQX MQTT Credentials
+const char* mqtt_server = "ce41d666.ala.asia-southeast1.emqxsl.com";
+const int mqtt_port = 1883; 
+const char* mqtt_user = "agriresq_node";
+const char* mqtt_pass = "123qweasd";
 
+// Backend Server
+const char* serverURL = "http://192.168.254.113:8000/api/analyze-freshness/"; 
+
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
 httpd_handle_t stream_httpd = NULL;
+
+void sendCamHeartbeat() {
+  if (!mqttClient.connected()) {
+    mqttClient.setServer(mqtt_server, mqtt_port);
+    if (mqttClient.connect("CAM_NODE_01", mqtt_user, mqtt_pass)) {
+      Serial.println("✅ MQTT Heartbeat Connected");
+    }
+  }
+  if (mqttClient.connected()) {
+    String payload = "{\"node_id\": \"CAM_01\", \"status\": \"ONLINE\", \"battery\": \"100%\"}";
+    mqttClient.publish("agriresq/telemetry/cam_status", payload.c_str());
+    mqttClient.loop();
+  }
+}
 
 void uploadImageToServer() {
   Serial.println("📷 Capturing image for AI Analysis...");
-  
-  // Get frame from the second buffer
   camera_fb_t *fb = esp_camera_fb_get();
-  
-  if (!fb) {
-    Serial.println("❌ Camera capture failed");
-    return;
-  }
+  if (!fb) { Serial.println("❌ Camera capture failed"); return; }
 
-  WiFiClient client;
   HTTPClient http;
-  
-  Serial.println("📤 Uploading to Django Backend...");
-  http.begin(client, serverURL);
+  http.begin(wifiClient, serverURL);
   http.addHeader("Content-Type", "image/jpeg");
-  http.addHeader("X-Crop-Type", "EGGPLANT"); // Set this to CARROT or CUCUMBER as needed
+  http.addHeader("X-Crop-Type", "EGGPLANT"); 
   
   int httpResponseCode = http.POST(fb->buf, fb->len);
-  
   if (httpResponseCode > 0) {
-    Serial.printf("✅ Server Response (%d): %s\n", httpResponseCode, http.getString().c_str());
+    Serial.printf("✅ AI Server Response (%d)\n", httpResponseCode);
+    sendCamHeartbeat(); // Trigger heartbeat after successful upload
   } else {
     Serial.printf("❌ Error: %s\n", http.errorToString(httpResponseCode).c_str());
   }
-  
   http.end();
-  esp_camera_fb_return(fb); // Release memory
+  esp_camera_fb_return(fb);
 }
 
 #define PART_BOUNDARY "123456789000000000000987654321"
@@ -69,24 +82,19 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 esp_err_t stream_handler(httpd_req_t *req) {
   camera_fb_t * fb = NULL;
   esp_err_t res = ESP_OK;
-  
   res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
   if(res != ESP_OK) return res;
-
   while(true) {
     fb = esp_camera_fb_get();
-    if (!fb) {
-      res = ESP_FAIL;
-    } else {
+    if (!fb) { res = ESP_FAIL; } 
+    else {
       size_t hlen = snprintf((char *)NULL, 0, _STREAM_PART, fb->len);
       char * part_buf = (char *)malloc(hlen + 1);
       snprintf(part_buf, hlen + 1, _STREAM_PART, fb->len);
       res = httpd_resp_send_chunk(req, part_buf, hlen);
       free(part_buf);
-      
       if(res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
       if(res == ESP_OK) res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
-      
       esp_camera_fb_return(fb);
     }
     if(res != ESP_OK) break;
@@ -97,14 +105,7 @@ esp_err_t stream_handler(httpd_req_t *req) {
 void startCameraServer(){
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
-  
-  httpd_uri_t index_uri = {
-    .uri       = "/stream",
-    .method    = HTTP_GET,
-    .handler   = stream_handler,
-    .user_ctx  = NULL
-  };
-  
+  httpd_uri_t index_uri = { .uri = "/stream", .method = HTTP_GET, .handler = stream_handler, .user_ctx = NULL };
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &index_uri);
   }
@@ -112,58 +113,24 @@ void startCameraServer(){
 
 void setup() {
   Serial.begin(115200);
-  Serial.setDebugOutput(true);
-  Serial.println("\n🌱 AgriResQ System Booting...");
-
   camera_config_t config;
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer = LEDC_TIMER_0;
-  config.pin_d0 = Y2_GPIO_NUM;
-  config.pin_d1 = Y3_GPIO_NUM;
-  config.pin_d2 = Y4_GPIO_NUM;
-  config.pin_d3 = Y5_GPIO_NUM;
-  config.pin_d4 = Y6_GPIO_NUM;
-  config.pin_d5 = Y7_GPIO_NUM;
-  config.pin_d6 = Y8_GPIO_NUM;
-  config.pin_d7 = Y9_GPIO_NUM;
-  config.pin_xclk = XCLK_GPIO_NUM;
-  config.pin_pclk = PCLK_GPIO_NUM;
-  config.pin_vsync = VSYNC_GPIO_NUM;
-  config.pin_href = HREF_GPIO_NUM;
-  config.pin_sccb_sda = SIOD_GPIO_NUM; 
-  config.pin_sccb_scl = SIOC_GPIO_NUM; 
-  config.pin_pwdn = PWDN_GPIO_NUM;
-  config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
-  config.pixel_format = PIXFORMAT_JPEG;
-  
-  config.frame_size = FRAMESIZE_VGA;
-  config.jpeg_quality = 12;
-  config.fb_count = 2; // MAGIC FIX: Using 2 buffers prevents memory crashes
+  config.pin_d0 = Y2_GPIO_NUM; config.pin_d1 = Y3_GPIO_NUM; config.pin_d2 = Y4_GPIO_NUM; 
+  config.pin_d3 = Y5_GPIO_NUM; config.pin_d4 = Y6_GPIO_NUM; config.pin_d5 = Y7_GPIO_NUM; 
+  config.pin_d6 = Y8_GPIO_NUM; config.pin_d7 = Y9_GPIO_NUM; config.pin_xclk = XCLK_GPIO_NUM; 
+  config.pin_pclk = PCLK_GPIO_NUM; config.pin_vsync = VSYNC_GPIO_NUM; config.pin_href = HREF_GPIO_NUM; 
+  config.pin_sscb_sda = SIOD_GPIO_NUM; config.pin_sscb_scl = SIOC_GPIO_NUM; config.pin_pwdn = PWDN_GPIO_NUM; 
+  config.pin_reset = RESET_GPIO_NUM; config.xclk_freq_hz = 20000000; config.pixel_format = PIXFORMAT_JPEG;
+  config.frame_size = FRAMESIZE_VGA; config.jpeg_quality = 12; config.fb_count = 2;
 
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("❌ Camera init failed: 0x%x\n", err);
-    return;
-  }
-  
+  esp_camera_init(&config);
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
+  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
   
-  Serial.println("\n✅ WiFi connected!");
-  Serial.print("Lens test ready! Open this link in your browser: http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("/stream");
-
   startCameraServer();
   uploadImageToServer();
 }
 
 void loop() {
-  // Take a fresh AI photo every 15 seconds
   delay(15000); 
   uploadImageToServer();
 }
