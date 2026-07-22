@@ -9,12 +9,13 @@ export default function Register({ onRegister, onBack }) {
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -26,26 +27,51 @@ export default function Register({ onRegister, onBack }) {
       setError("Passwords do not match.");
       return;
     }
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("agriresq_users") || "[]");
+    setIsLoading(true);
 
-    const exists = users.find((u) => u.email === form.email);
-    if (exists) {
-      setError("An account with this email already exists.");
-      return;
+    // Create the payload matching your Django RegisterSerializer
+    const payload = {
+      full_name: form.name,
+      email: form.email,
+      password: form.password,
+      role: "WHOLESALER",       // Defaulting to Wholesaler for your Capstone
+      stall_number: "Stall 1"   // Required by Django if role is WHOLESALER
+    };
+
+    try {
+      // Actually send the data to Django!
+      const response = await fetch('http://127.0.0.1:8000/api/auth/register/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess(true);
+        setTimeout(() => {
+          onRegister();
+        }, 1500);
+      } else {
+        console.error("Django Validation Error:", data); // Add this line!
+        
+        // Show the actual error message coming from Django (e.g., "Email already registered")
+        if (data.email) setError(data.email[0]);
+        else if (data.password) setError(data.password[0]);
+        else setError(data.detail || "Registration failed. Please check your details.");
+      }
+    } catch (err) {
+      console.error("Network error:", err);
+      setError("Cannot connect to the server. Is Django running?");
+    } finally {
+      setIsLoading(false);
     }
-
-    users.push({ name: form.name, email: form.email, password: form.password });
-    localStorage.setItem("agriresq_users", JSON.stringify(users));
-
-    setSuccess(true);
-    setTimeout(() => {
-      onRegister();
-    }, 1500);
   };
 
   return (
@@ -211,17 +237,20 @@ export default function Register({ onRegister, onBack }) {
 
                 <button
                   type="submit"
+                  disabled={isLoading}
                   style={{
                     width: "100%", padding: "11px",
                     background: "#1D9E75", color: "#fff",
                     border: "none", borderRadius: "8px",
                     fontSize: "15px", fontWeight: 600,
-                    cursor: "pointer", marginBottom: "1rem"
+                    cursor: isLoading ? "not-allowed" : "pointer", 
+                    marginBottom: "1rem",
+                    opacity: isLoading ? 0.7 : 1
                   }}
-                  onMouseOver={(e) => e.target.style.background = "#0F6E56"}
-                  onMouseOut={(e) => e.target.style.background = "#1D9E75"}
+                  onMouseOver={(e) => !isLoading && (e.target.style.background = "#0F6E56")}
+                  onMouseOut={(e) => !isLoading && (e.target.style.background = "#1D9E75")}
                 >
-                  Create account
+                  {isLoading ? "Creating account..." : "Create account"}
                 </button>
 
                 <button

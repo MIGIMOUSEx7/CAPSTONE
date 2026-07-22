@@ -1,30 +1,47 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom"; // Added this import so the forgot password route works!
+import { Link } from "react-router-dom";
 
 export default function Login({ onLogin, onRegister }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
+
     if (!email || !password) {
       setError("Please fill in all fields.");
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("agriresq_users") || "[]");
-    const match = users.find(
-      (u) => u.email === email && u.password === password
-    );
+    setIsLoading(true);
 
-    if (match) {
-      setError("");
-      // Save logged in user so Profile can read it
-      localStorage.setItem("agriresq_current_user", JSON.stringify(match));
-      onLogin();
-    } else {
-      setError("Invalid email or password.");
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/auth/login/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, password: password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // SUCCESS! Save the Django token to the browser
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("agriresq_current_user", JSON.stringify(data.user));
+        
+        onLogin(); // Proceed to the Dashboard!
+      } else {
+        // Show exact error from Django (e.g., "Invalid credentials")
+        setError(data.detail || "Invalid email or password.");
+      }
+    } catch (err) {
+      console.error("Network error:", err);
+      setError("Cannot connect to server. Is Django running?");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -148,7 +165,6 @@ export default function Login({ onLogin, onRegister }) {
             </div>
 
             <div style={{ textAlign: "right", marginBottom: "1.5rem" }}>
-              {/* REPLACED THE <a> TAG WITH <Link> TO MAKE FORGOT PASSWORD WORK */}
               <Link to="/forgot-password" style={{ fontSize: "12px", color: "#1D9E75", textDecoration: "none" }}>
                 Forgot password?
               </Link>
@@ -156,17 +172,20 @@ export default function Login({ onLogin, onRegister }) {
 
             <button
               type="submit"
+              disabled={isLoading}
               style={{
                 width: "100%", padding: "11px",
                 background: "#1D9E75", color: "#fff",
                 border: "none", borderRadius: "8px",
                 fontSize: "15px", fontWeight: 600,
-                cursor: "pointer", marginBottom: "1rem"
+                cursor: isLoading ? "not-allowed" : "pointer", 
+                marginBottom: "1rem",
+                opacity: isLoading ? 0.7 : 1
               }}
-              onMouseOver={(e) => e.target.style.background = "#0F6E56"}
-              onMouseOut={(e) => e.target.style.background = "#1D9E75"}
+              onMouseOver={(e) => !isLoading && (e.target.style.background = "#0F6E56")}
+              onMouseOut={(e) => !isLoading && (e.target.style.background = "#1D9E75")}
             >
-              Sign in
+              {isLoading ? "Signing in..." : "Sign in"}
             </button>
 
             <div style={{ textAlign: "center" }}>

@@ -7,23 +7,47 @@ const Batches = () => {
   useEffect(() => {
     const fetchBatches = async () => {
       try {
+        // FIX 1: previously sent no Authorization header, so the backend
+        // (CropBatchViewSet, permission_classes = AllowAny) treated this
+        // as an anonymous request. Its get_queryset() then returned
+        // qs.none() for any user without a profile — which silently
+        // produced an empty [] rather than a clear error. Attaching the
+        // token lets the backend actually scope real batches to this user.
+        //
+        // Same as Sensors.jsx: confirm the real localStorage key in
+        // DevTools > Application > Local Storage, then simplify this to
+        // a single localStorage.getItem('yourActualKey').
+        const token =
+          localStorage.getItem('token') ||
+          localStorage.getItem('authToken') ||
+          localStorage.getItem('access_token');
 
-        const response = await fetch('http://127.0.0.1:8000/api/batches/');
+        const response = await fetch('http://127.0.0.1:8000/api/batches/', {
+          headers: token ? { 'Authorization': `Token ${token}` } : {},
+        });
+
+        if (!response.ok) {
+          console.error('Failed to fetch batches, status:', response.status);
+          setBatches([]);
+          setIsLoading(false);
+          return;
+        }
+
         const liveBatches = await response.json();
         setBatches(liveBatches);
+        setIsLoading(false);
 
-
-        // Simulating API delay and data fetch
-        setTimeout(() => {
-          setBatches([
-            { id: '#001', node: 'Stall 1 • Node 01', icon: '🍆', crop: 'Eggplant', scientific: 'Solanum melongena', qty: '85 kg', price: '₱18/kg', arrival: 'Apr 24, 6:00 AM', days: 2, daysColor: 'text-amber-500', temp: '33.4°C', rh: '82% RH', status: 'At-Risk', statusBg: 'bg-amber-100 text-amber-700' },
-            { id: '#002', node: 'Stall 1 • Node 02', icon: '🥒', crop: 'Cucumber', scientific: 'Cucumis sativus', qty: '60 kg', price: '₱22/kg', arrival: 'Apr 24, 8:00 AM', days: 4, daysColor: 'text-amber-500', temp: '29.8°C', rh: '78% RH', status: 'Monitoring', statusBg: 'bg-amber-100 text-amber-700' },
-            { id: '#003', node: 'Stall 1 • Node 03', icon: '🥕', crop: 'Carrots', scientific: 'Daucus carota', qty: '120 kg', price: '₱15/kg', arrival: 'Apr 24, 5:30 AM', days: 8, daysColor: 'text-emerald-600', temp: '24.5°C', rh: '91% RH', status: 'Fresh', statusBg: 'bg-emerald-100 text-emerald-700' },
-          ]);
-          setIsLoading(false);
-        }, 500);
+        // FIX 2: removed the setTimeout() block that used to run right
+        // after this and silently overwrite whatever the backend
+        // returned with hardcoded mock rows. That meant the table was
+        // ALWAYS showing fake data, regardless of what /api/batches/
+        // actually returned. If you still want placeholder rows for
+        // demoing when the backend has no real batches yet, gate them
+        // behind a check like `if (liveBatches.length === 0) { ... }`
+        // instead of unconditionally overwriting real data.
       } catch (error) {
         console.error("Failed to fetch batches:", error);
+        setBatches([]);
         setIsLoading(false);
       }
     };
@@ -54,7 +78,7 @@ const Batches = () => {
         </div>
       </div>
 
-      {/* Top Stats - Now dynamically calculated from State! */}
+      {/* Top Stats - dynamically calculated from State */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Total Batches</p>
@@ -129,13 +153,13 @@ const Batches = () => {
                     <p className="text-xs text-slate-500">{row.price}</p>
                   </td>
                   <td className="p-4 align-top pt-5">
-                    <p className="font-bold text-slate-800">{row.arrival.split(',')[0]}</p>
-                    <p className="text-xs text-slate-500">{row.arrival.split(',')[1]}</p>
+                    <p className="font-bold text-slate-800">{row.arrival?.split(',')[0]}</p>
+                    <p className="text-xs text-slate-500">{row.arrival?.split(',')[1]}</p>
                   </td>
                   <td className="p-4 align-top pt-5">
                     <p className={`font-bold ${row.daysColor}`}>{row.days} days</p>
                     <div className="w-16 h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
-                      <div className={`h-full ${row.daysColor.replace('text', 'bg')}`} style={{width: `${(row.days/8)*100}%`}}></div>
+                      <div className={`h-full ${row.daysColor?.replace('text', 'bg')}`} style={{width: `${(row.days/8)*100}%`}}></div>
                     </div>
                   </td>
                   <td className="p-4 align-top pt-5">

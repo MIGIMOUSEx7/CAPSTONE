@@ -13,7 +13,7 @@ export default function AIVision() {
   const processingRef = useRef(false); // Used to prevent overlapping scans
 
   // ⚠️ Ensure your Vite proxy is pointing to your ESP32's NEW IP address!
-  const ESP32_STREAM_URL = `/api/camera/stream`;
+  const ESP32_STREAM_URL = `http://192.168.254.115/stream`;
 
   // The main scanning function
   const captureAndAnalyze = async (isAuto = false) => {

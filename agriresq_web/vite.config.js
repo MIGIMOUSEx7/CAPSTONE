@@ -16,8 +16,14 @@ export default defineConfig({
         target: 'http://192.168.254.115', // <-- CRITICAL: Update this if your ESP32 IP changed in the Serial Monitor!
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/camera/, ''),
+        // Camera streams are long-lived connections that never "complete"
+        // the way a normal API response does — disable timeouts so Vite's
+        // proxy doesn't kill the connection.
+        timeout: 0,
+        proxyTimeout: 0,
+        ws: true,
       },
-      
+
       // 2. Django Backend Proxy
       '/api': {
         target: 'http://127.0.0.1:8000',

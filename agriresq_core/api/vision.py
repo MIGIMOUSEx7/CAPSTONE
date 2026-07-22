@@ -24,9 +24,6 @@ def analyze_crop_image(image_bytes: bytes, crop_type: str = 'EGGPLANT') -> dict:
     # Create a grayscale copy for the SVM and contour detection
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    # --- UPGRADED: EDGE DETECTION (Canny) ---
-    # Instead of standard thresholding, we look for harsh edges. 
-    # A blank wall has no edges. Vegetables have clear edges.
     blurred = cv2.GaussianBlur(img_gray, (7, 7), 0)
     edges = cv2.Canny(blurred, 30, 150)
     
