@@ -15,6 +15,7 @@ import Messages from './pages/Messages';
 import Chat from './pages/Chat';
 import Notifications from './pages/Notifications';
 import Profile from './pages/Profile';
+import AccountSettings from './pages/AccountSettings';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/ai-test" element={<AIVision />} />
           
           {/* Private Routes */}
+          <Route path="/account-settings" element={<PrivateRoute><AccountSettings /></PrivateRoute>} />
           <Route path="/home" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/batch/new" element={<PrivateRoute><NewBatch /></PrivateRoute>} />
           <Route path="/batch/:id" element={<PrivateRoute><BatchDetail /></PrivateRoute>} />
