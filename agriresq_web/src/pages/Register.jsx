@@ -202,20 +202,21 @@ export default function Register({ onRegister, onBack }) {
                   {isLoading ? "Creating account..." : "Create account"}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={onBack}
-                  style={{
-                    width: "100%", padding: "11px",
-                    background: "transparent", color: "#64748b",
-                    border: "1px solid #e2e8f0", borderRadius: "8px",
-                    fontSize: "15px", cursor: "pointer"
-                  }}
-                  onMouseOver={(e) => e.target.style.background = "#f1f5f9"}
-                  onMouseOut={(e) => e.target.style.background = "transparent"}
-                >
-                  ← Back to login
-                </button>
+                  
+                   <div style={{ textAlign: "center" }}>
+              <span style={{ fontSize: "13px", color: "#64748b" }}>Already have an account? </span>
+              <button
+                type="button"
+                onClick={onBack}
+                style={{
+                  background: "none", border: "none",
+                  color: "#155E52", fontSize: "13px",
+                  fontWeight: 600, cursor: "pointer", padding: 0
+                }}
+              >
+                Login
+              </button>
+            </div>
 
               </form>
             </>

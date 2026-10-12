@@ -45,9 +45,13 @@ export default function Login() {
             <button type="button" className="btn-link small" onClick={() => setShowPassword((s) => !s)}>{showPassword ? 'Hide' : 'Show'}</button>
           </div>
         </div>
-        <div className="form-row">
-          <Link to="/forgot-password" className="link-secondary">Forgot password?</Link>
-        </div>
+
+        <div style={{ textAlign: "right", marginBottom: "1.5rem" }}>
+                     <Link to="/forgot-password" style={{ fontSize: "12px", color: "#155E52", textDecoration: "none" }}>
+                       Forgot password?
+                     </Link>
+                   </div>
+                   
         {error && <p className="error-text">{error}</p>}
         <button type="submit" className="btn btn-green" disabled={loading}>
           {loading ? 'Signing in...' : 'Sign In'}
