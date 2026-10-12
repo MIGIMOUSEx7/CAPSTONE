@@ -103,7 +103,7 @@ export default function AIVision() {
                 ${result.freshness_status === 'GREEN' ? 'text-[#2A6B48]' : 
                   result.freshness_status === 'UNKNOWN' ? 'text-slate-500' : 'text-rose-500'}`}>
                 {result.freshness_status === 'GREEN' ? 'Fresh / Safe' : 
-                 result.freshness_status === 'UNKNOWN' ? 'Subject Not Recognized' : 'At-Risk / Spoiled'}
+                 result.freshness_status === 'UNKNOWN' ? 'Subject Not Recognized' : 'At-Risk / Rotten'}
               </p>
             </div>
             <div className="text-right">

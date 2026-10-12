@@ -51,7 +51,11 @@ export default function Messages() {
         ) : (
           <div className="empty-state card">
             <p>{tab === 'inbox' ? 'No active chats.' : 'No archived transactions.'}</p>
-            <p className="muted">Use Chat Now on marketplace listings.</p>
+            <p className="muted">Use Chat Now on marketplace listings. If you're signed in as a Stall Operator, switch to Rescue Buyer in your Profile to start chats.</p>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn btn-outline" onClick={() => window.location.href = '/marketplace'}>Browse Listings</button>
+              <button className="btn btn-outline" onClick={() => window.location.href = '/profile'} style={{ marginLeft: 8 }}>Profile</button>
+            </div>
           </div>
         )}
       </div>

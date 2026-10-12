@@ -1,25 +1,53 @@
 .dash-header {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
+  margin: -20px -18px 24px;
+  padding: 28px 18px 22px;
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+  color: var(--white);
+  border-radius: 0 0 24px 24px;
+  overflow: hidden;
+}
+
+.dash-header::after {
+  content: '';
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  right: -55px;
+  top: -70px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
 }
 
 .dash-greet {
   font-size: 14px;
-  color: var(--gray-600);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .dash-header h1 {
-  font-size: 24px;
+  position: relative;
+  z-index: 1;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 26px;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--white);
 }
 
 .notif-btn {
   position: relative;
-  font-size: 24px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  color: var(--white);
   padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .notif-badge {
@@ -49,6 +77,9 @@
 }
 
 .add-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   color: var(--primary);
   font-weight: 600;
   font-size: 14px;

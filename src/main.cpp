@@ -4,6 +4,7 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h> 
 #include <PubSubClient.h>
+#include "secrets.h"
 
 // AI-THINKER pin configuration
 #define PWDN_GPIO_NUM     32
@@ -24,17 +25,17 @@
 #define PCLK_GPIO_NUM     22
 
 // Credentials
-const char* ssid = "GFiber_2.4_Coverage_65DD3";
-const char* password = "BE2745F7";
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 
 // EMQX MQTT Credentials
 const char* mqtt_server = "ce41d666.ala.asia-southeast1.emqxsl.com";
 const int mqtt_port = 8883; 
-const char* mqtt_user = "agriresq_node";
-const char* mqtt_pass = "123qweasd";
+const char* mqtt_user = MQTT_USER;
+const char* mqtt_pass = MQTT_PASSWORD;
 
 // Backend Server
-const char* serverURL = "http://192.168.254.113:8000/api/analyze-freshness/"; 
+const char* serverURL = "http://192.168.56.1:8000/api/analyze-freshness/";
 
 WiFiClient wifiClient;
 WiFiClientSecure secureClient; // Required for port 8883 (SSL/TLS)

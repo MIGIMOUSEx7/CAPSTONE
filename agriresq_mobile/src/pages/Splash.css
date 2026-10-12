@@ -1,4 +1,6 @@
 .splash {
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(160deg, var(--primary) 0%, var(--primary-dark) 100%);
   display: flex;
   align-items: center;
@@ -9,6 +11,7 @@
 }
 
 .splash-content {
+  animation: splash-rise 700ms cubic-bezier(.22, 1, .36, 1) both;
   padding: 32px 24px;
   width: 100%;
 }
@@ -16,6 +19,7 @@
 .logo-icon {
   font-size: 64px;
   margin-bottom: 16px;
+  animation: leaf-bob 3.5s ease-in-out 750ms infinite;
 }
 
 .splash h1 {
@@ -36,4 +40,47 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.splash-actions .btn {
+  animation: action-rise 600ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.splash-actions .btn:first-child {
+  animation-delay: 300ms;
+}
+
+.splash-actions .btn:last-child {
+  animation-delay: 400ms;
+}
+
+.splash-actions .btn svg {
+  transition: transform 180ms ease;
+}
+
+.splash-actions .btn:first-child:hover svg {
+  transform: translateX(3px);
+}
+
+@keyframes splash-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes action-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes leaf-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(-3deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-content,
+  .logo-icon,
+  .splash-actions .btn {
+    animation: none;
+  }
 }

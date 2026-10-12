@@ -5,6 +5,7 @@ import { computeDynamicPrice } from '../api/pricing'
 import StatusBadge from '../components/StatusBadge'
 import './Auth.css'
 import './NewBatch.css'
+import { supabase } from '../lib/supabase'
 
 export default function NewBatch() {
   const navigate = useNavigate()
@@ -22,6 +23,10 @@ export default function NewBatch() {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [listingMissing, setListingMissing] = useState(false)
+  const [publishLoading, setPublishLoading] = useState(false)
+  const [publishError, setPublishError] = useState('')
+  const [lastBatchId, setLastBatchId] = useState(null)
 
   useEffect(() => {
     api.nodes().then(setNodes).catch(() => setNodes([]))
@@ -67,13 +72,28 @@ export default function NewBatch() {
     }
   }
 
-  /** Step 4–5: Save product + freshness to Supabase → marketplace */
+  /** Step 4–5: Save product + freshness to Supabase → listings */
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
     try {
       let freshness = analysis
+      let imageUrl = ''
+      if (imageFile) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          const uid = user?.id || 'anon'
+          const path = `product-images/${uid}-${Date.now()}-${imageFile.name}`
+          const { error: uploadErr } = await supabase.storage.from('product-images').upload(path, imageFile, { upsert: true })
+          if (!uploadErr) {
+            const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+            imageUrl = data.publicUrl
+          }
+        } catch (err) {
+          console.warn('Image upload failed', err)
+        }
+      }
       if (!freshness && imageFile) {
         freshness = await api.analyzeFreshness(imageFile, form.crop_type)
       }
@@ -90,14 +110,59 @@ export default function NewBatch() {
         freshness_percent: freshness?.freshness_percent ?? 100,
         predicted_shelf_life: freshness?.days_to_spoil ?? 5,
         ml_confidence: freshness?.ml_confidence,
-        image_url: freshness?.image_url || imagePreview || '',
+        image_url: freshness?.image_url || imageUrl || imagePreview || '',
         is_listed: status === 'AMBER' || status === 'GREEN',
       })
+      setLastBatchId(batch.id)
+      // Ensure listing exists (some Supabase configs take a moment)
+      try {
+        let listing = await api.getListingByProduct(batch.id)
+        const start = Date.now()
+        while (!listing && Date.now() - start < 10000) {
+          // wait a bit and retry
+          await new Promise((r) => setTimeout(r, 800))
+          listing = await api.getListingByProduct(batch.id)
+        }
+        if (!listing) {
+          setListingMissing(true)
+        }
+      } catch (err) {
+        console.warn('Listing check failed', err)
+        setListingMissing(true)
+      }
+
       navigate(`/batch/${batch.id}`)
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const forcePublish = async () => {
+    setPublishLoading(true)
+    setPublishError('')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const uid = user?.id
+      const prodId = lastBatchId
+      const { data: product } = await supabase.from('products').select('*').eq('id', prodId).maybeSingle()
+      if (!product) throw new Error('Product not found')
+      // Call _ensureListing with the batch returned earlier by createBatch
+      await api._ensureListing({ id: product.id, operator_id: uid, base_price_per_kg: product.base_price_per_kg, quantity_kg: product.quantity_kg, freshness_status: product.freshness_status, auto_discount_enabled: product.auto_discount_enabled })
+      // re-check
+      const listing = await api.getListingByProduct(product.id)
+      if (listing) {
+        setListingMissing(false)
+        alert('Listing published successfully')
+      } else {
+        setPublishError('Listing still not found after publish attempt')
+      }
+    } catch (err) {
+      console.error(err)
+      setPublishError(err.message || String(err))
+    } finally {
+      setPublishLoading(false)
     }
   }
 
@@ -112,7 +177,7 @@ export default function NewBatch() {
       <div className="page page-no-nav auth-page">
         <Link to="/home" className="back-link">← Back</Link>
         <h2 className="page-heading">Add Product</h2>
-        <p className="flow-hint">ESP32-CAM capture → AI freshness analysis → save to database → marketplace</p>
+        <p className="flow-hint">ESP32-CAM capture → AI freshness analysis → save to database → listings</p>
 
         <form className="card auth-form new-batch-form" onSubmit={handleSubmit}>
           <div className="flow-steps card inner-card">
@@ -187,7 +252,7 @@ export default function NewBatch() {
                   <span>{freshnessDistribution.atRisk}% At-Risk</span>
                 </div>
                 <div className="freshness-bar freshness-spoiled" style={{ width: `${freshnessDistribution.spoiled}%` }}>
-                  <span>{freshnessDistribution.spoiled}% Spoiled</span>
+                  <span>{freshnessDistribution.spoiled}% Rotten</span>
                 </div>
               </div>
               <p>Days to spoil: <strong>{analysis.days_to_spoil}</strong></p>
@@ -216,8 +281,18 @@ export default function NewBatch() {
 
           {error && <p className="error-text">{error}</p>}
           <button type="submit" className="btn btn-green" disabled={loading}>
-            {loading ? 'Saving to database...' : 'Save Product & Show in Marketplace'}
+            {loading ? 'Saving to database...' : 'Save Product & Show in Listings'}
           </button>
+          {listingMissing && (
+            <div className="card warning-block" style={{ marginTop: 12 }}>
+              <p>Listing was not found in the marketplace automatically.</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-green" onClick={forcePublish} disabled={publishLoading}>{publishLoading ? 'Publishing...' : 'Force Publish Listing'}</button>
+                <button className="btn btn-outline" onClick={() => { setListingMissing(false); setPublishError('') }}>Dismiss</button>
+              </div>
+              {publishError && <p className="error-text">{publishError}</p>}
+            </div>
+          )}
         </form>
       </div>
     </div>

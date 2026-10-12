@@ -44,6 +44,20 @@ export default function Chat() {
 
   const handleBack = () => setShowExitModal(true)
 
+  const handleBackWithPref = () => {
+    try {
+      const key = `agriresq.no_transaction_exit_reminder.${user?.id || 'anon'}`
+      const val = localStorage.getItem(key)
+      if (val === '1') {
+        navigate('/messages')
+        return
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+    setShowExitModal(true)
+  }
+
   const handleExitConfirm = async (completed) => {
     await api.completeTransaction(id, completed)
     setShowExitModal(false)
@@ -55,11 +69,11 @@ export default function Chat() {
       <div className="chat-page">
         <header className="chat-header">
           <div className="chat-header-left">
-            <button type="button" className="back-btn" onClick={handleBack}>←</button>
+            <button type="button" className="back-btn" onClick={handleBackWithPref}>←</button>
             <h2>{thread?.marketplace_listings?.products?.crop_type || 'Chat'} — Rescue Deal</h2>
           </div>
           <button type="button" className="complete-btn" onClick={() => handleExitConfirm(true)}>
-            Complete & Archive
+            {user?.role === 'STALL_OPERATOR' ? 'Complete & Mark Sold' : 'Mark Complete'}
           </button>
         </header>
         <div className="chat-messages">
@@ -82,6 +96,7 @@ export default function Chat() {
         open={showExitModal}
         onConfirm={handleExitConfirm}
         onCancel={() => setShowExitModal(false)}
+        userId={user?.id}
       />
     </div>
   )

@@ -11,7 +11,7 @@ export const CROP_IMAGES = {
 }
 
 export function statusLabel(status) {
-  return { GREEN: 'Fresh', AMBER: 'At-Risk', RED: 'Spoiled' }[status] || status
+  return { GREEN: 'Fresh', AMBER: 'At-Risk', RED: 'Rotten' }[status] || status
 }
 
 export function statusClass(status) {

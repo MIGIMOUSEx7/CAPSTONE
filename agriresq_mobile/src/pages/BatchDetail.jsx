@@ -13,11 +13,13 @@ export default function BatchDetail() {
   const { id } = useParams()
   const [batch, setBatch] = useState(null)
   const [prediction, setPrediction] = useState(null)
+  const [detection, setDetection] = useState(null)
 
   useEffect(() => {
     const load = () => {
       api.batch(id).then(setBatch).catch(console.error)
       api.predict(id).then(setPrediction).catch(console.error)
+      api.batchDetectionPercent(id).then(setDetection).catch(() => setDetection(null))
     }
     load()
     const t = setInterval(load, 30000)
@@ -96,6 +98,12 @@ export default function BatchDetail() {
             <h3>Latest Prediction</h3>
             <p>Days to spoil: <strong>{Number(prediction.days_to_spoil).toFixed(1)}</strong></p>
             <p>Freshness: <strong>{prediction.freshness_percent}%</strong></p>
+          </section>
+        )}
+        {detection && (
+          <section className="detail-section card">
+            <h3>Detection (last 3 weeks)</h3>
+            <p>Flagged predictions: <strong>{detection.percent}%</strong> ({detection.total} samples)</p>
           </section>
         )}
       </div>

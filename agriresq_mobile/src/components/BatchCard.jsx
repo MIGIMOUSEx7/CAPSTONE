@@ -1,10 +1,26 @@
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { api } from '../api/supabaseApi'
+import ConfirmDialog from './ConfirmDialog'
+import { useState } from 'react'
 import { CROP_LABELS, CROP_IMAGES } from '../utils/helpers'
 import StatusBadge from './StatusBadge'
 import './BatchCard.css'
 
 export default function BatchCard({ batch }) {
   const crop = batch.crop_type
+  const { user } = useAuth()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const handleRemove = async () => {
+    try {
+      await api.removeBatch(batch.id)
+      setConfirmOpen(false)
+      alert('Batch removed')
+      window.location.reload()
+    } catch (err) {
+      alert('Failed: ' + (err.message || err))
+    }
+  }
   return (
     <Link to={`/batch/${batch.id}`} className="batch-card card">
       <img src={batch.image_url || CROP_IMAGES[crop]} alt={CROP_LABELS[crop]} className="batch-img" />
@@ -24,6 +40,20 @@ export default function BatchCard({ batch }) {
           <span>₱{Number(batch.current_price_per_kg || 0).toFixed(2)}/kg</span>
           <span>{Number(batch.predicted_shelf_life).toFixed(1)}d left</span>
         </div>
+        <div className="batch-actions">
+          {batch.is_listed && <Link to={`/produce/${batch.id}`} className="btn btn-sm">View Listing</Link>}
+          {user && user.role === 'STALL_OPERATOR' && user.id === batch.operator_id && (
+            <button title="Remove Batch" className="icon-btn danger" onClick={() => setConfirmOpen(true)}>🗑</button>
+          )}
+        </div>
+        <ConfirmDialog
+          open={confirmOpen}
+          title="Remove Batch"
+          message="Remove this batch? This will delete the product and its listing."
+          onConfirm={handleRemove}
+          onCancel={() => setConfirmOpen(false)}
+          confirmLabel="Remove"
+        />
       </div>
     </Link>
   )

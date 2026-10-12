@@ -19,6 +19,29 @@
   margin-bottom: 4px;
 }
 
+.producer-name {
+  font-size: 13px;
+  color: var(--gray-700);
+  margin-bottom: 6px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-sm {
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--gray-300);
+  padding: 6px 8px;
+}
+
 .produce-price {
   font-size: 15px;
   font-weight: 700;

@@ -1,25 +1,74 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+import { api } from '../api/supabaseApi';
 
 const AuthContext = createContext();
 
-// 1. Initialize Supabase safely (only if keys exist)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-let supabase = null;
-if (supabaseUrl && supabaseKey) {
-  supabase = createClient(supabaseUrl, supabaseKey);
-} else {
-  console.warn("Supabase keys are missing. Auth disabled.");
-}
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false); // Set to false so App doesn't stay stuck on loading
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const me = await api.me();
+        setUser(me || null);
+      } catch (err) {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user || null);
+      }
+      setLoading(false);
+    };
+
+    init();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session) return setUser(null)
+      setUser((currentUser) => currentUser?.id === session.user.id ? currentUser : session.user)
+    });
+
+    return () => {
+      if (authListener?.subscription?.unsubscribe) {
+        authListener.subscription.unsubscribe();
+      } else if (authListener?.unsubscribe) {
+        authListener.unsubscribe();
+      }
+    };
+  }, []);
+
+  const login = async (email, password) => {
+    const authUser = await api.login(email, password);
+    let profileUser = null;
+    try {
+      profileUser = await api.me();
+    } catch (err) {
+      profileUser = null;
+    }
+    const user = profileUser || authUser;
+    setUser(user);
+    return user;
+  };
+
+  const register = async (form) => {
+    const authUser = await api.register(form);
+    let profileUser = null;
+    try {
+      profileUser = await api.me();
+    } catch (err) {
+      profileUser = null;
+    }
+    const user = profileUser || authUser;
+    setUser(user);
+    return user;
+  };
+
+  const logout = async () => {
+    await api.logout();
+    setUser(null);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, loading, supabase }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, supabase, isOperator: user?.role === 'STALL_OPERATOR', isBuyer: user?.role === 'RESCUE_BUYER' }}>
       {children}
     </AuthContext.Provider>
   );

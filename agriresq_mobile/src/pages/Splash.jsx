@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { ArrowRight, LogIn } from 'lucide-react'
 import './Splash.css'
 
 export default function Splash() {
@@ -12,8 +13,8 @@ export default function Splash() {
           <p>IoT-Assisted Rescue Distribution for Surplus Vegetables</p>
         </div>
         <div className="splash-actions">
-          <button className="btn btn-primary" onClick={() => navigate('/register')}>Get Started</button>
-          <button className="btn btn-outline" onClick={() => navigate('/login')}>Login</button>
+          <button className="btn btn-primary" onClick={() => navigate('/register')}>Get Started <ArrowRight size={18} /></button>
+          <button className="btn btn-outline" onClick={() => navigate('/login')}><LogIn size={17} /> Login</button>
         </div>
       </div>
     </div>

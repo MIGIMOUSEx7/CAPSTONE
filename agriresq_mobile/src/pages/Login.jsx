@@ -8,6 +8,7 @@ export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -39,7 +40,13 @@ export default function Login() {
         </div>
         <div className="input-group">
           <label>Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
+          <div className="password-row">
+            <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
+            <button type="button" className="btn-link small" onClick={() => setShowPassword((s) => !s)}>{showPassword ? 'Hide' : 'Show'}</button>
+          </div>
+        </div>
+        <div className="form-row">
+          <Link to="/forgot-password" className="link-secondary">Forgot password?</Link>
         </div>
         {error && <p className="error-text">{error}</p>}
         <button type="submit" className="btn btn-green" disabled={loading}>

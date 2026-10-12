@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { supabase } from '../lib/supabase'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import './Auth.css'
@@ -8,8 +9,9 @@ export default function Register() {
   const navigate = useNavigate()
   const [form, setForm] = useState({
     full_name: '', email: '', phone_number: '', password: '',
-    role: 'STALL_OPERATOR', stall_number: '', buyer_type: 'RETAILER',
+    role: 'STALL_OPERATOR', stall_number: '', buyer_type: 'RETAILER', location: '',
   })
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -20,7 +22,7 @@ export default function Register() {
     setError('')
     setLoading(true)
     try {
-      await register(form)
+      await register({ ...form })
       navigate('/home')
     } catch (err) {
       setError(err.message)
@@ -51,7 +53,10 @@ export default function Register() {
         </div>
         <div className="input-group">
           <label>Password</label>
-          <input type="password" value={form.password} onChange={(e) => set('password', e.target.value)} required minLength={8} />
+          <div className="password-row">
+            <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => set('password', e.target.value)} required minLength={8} />
+            <button type="button" className="btn-link small" onClick={() => setShowPassword((s) => !s)}>{showPassword ? 'Hide' : 'Show'}</button>
+          </div>
         </div>
         <div className="input-group">
           <label>Role</label>
@@ -72,6 +77,7 @@ export default function Register() {
             <input value={form.stall_number} onChange={(e) => set('stall_number', e.target.value)} placeholder="e.g. Stall 1" required />
           </div>
         )}
+        {/* Location and profile photo removed per request */}
         {error && <p className="error-text">{error}</p>}
         <button type="submit" className="btn btn-green" disabled={loading}>
           {loading ? 'Creating...' : 'Create Account'}

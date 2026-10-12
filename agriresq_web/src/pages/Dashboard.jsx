@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../api/supabaseApi';
 
 const Dashboard = () => {
   const [batches, setBatches] = useState([]);
@@ -7,23 +8,30 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
+        const result = await api.dashboard();
+        const mapped = (result.active_batches || []).map((batch) => {
+          const status = batch.freshness_status || 'UNKNOWN';
+          const statusColor = status === 'AMBER'
+            ? 'bg-amber-100 text-amber-700'
+            : status === 'RED'
+            ? 'bg-rose-100 text-rose-700'
+            : 'bg-emerald-100 text-emerald-700';
 
-        const response = await fetch('http://127.0.0.1:8000/api/batches/');
-        const liveBatches = await response.json();
-        setBatches(liveBatches);
+          return {
+            id: batch.id,
+            crop: batch.crop_type || batch.crop || 'Unknown',
+            qty: batch.quantity_kg ? `${batch.quantity_kg} kg` : '—',
+            days: batch.predicted_shelf_life != null ? `${batch.predicted_shelf_life} days` : '—',
+            status,
+            statusColor,
+          };
+        });
 
-
-
-        setTimeout(() => {
-          setBatches([
-            { id: "#001", crop: "Eggplant", qty: "85 kg", days: "2 days", status: "At-Risk", statusColor: "bg-rose-100 text-rose-700" },
-            { id: "#002", crop: "Cucumber", qty: "60 kg", days: "4 days", status: "Monitoring", statusColor: "bg-amber-100 text-amber-700" },
-            { id: "#003", crop: "Carrots", qty: "120 kg", days: "8 days", status: "Fresh", statusColor: "bg-emerald-100 text-emerald-700" },
-          ]);
-          setIsLoading(false);
-        }, 500);
+        setBatches(mapped);
       } catch (error) {
         console.error("Error loading dashboard data:", error);
+        setBatches([]);
+      } finally {
         setIsLoading(false);
       }
     };

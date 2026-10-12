@@ -1,56 +1,66 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../api/supabaseApi';
+
+const cropEmoji = (crop) => {
+  const normalized = (crop || '').toLowerCase();
+  if (normalized.includes('eggplant')) return '🍆';
+  if (normalized.includes('cucumber')) return '🥒';
+  if (normalized.includes('carrot')) return '🥕';
+  if (normalized.includes('tomato')) return '🍅';
+  if (normalized.includes('lettuce')) return '🥬';
+  return '🌾';
+};
 
 const Marketplace = () => {
-  // 1. STATE SETUP: These will hold the live data from your backend
   const [listings, setListings] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 2. LIVE DATA FETCHING: This runs automatically when the page loads
   useEffect(() => {
-    // This is the function that will talk to your Django API
     const fetchMarketplaceData = async () => {
       try {
-  
-        const listingsResponse = await fetch('http://127.0.0.1:8000/api/listings/');
-        const liveListings = await listingsResponse.json();
-        setListings(liveListings);
+        const liveListings = await api.marketplace();
+        const mappedListings = (liveListings || []).map((item) => {
+          const product = item.products || {};
+          const seller = product.profiles || {};
+          const status = product.freshness_status || 'Fresh';
+          const isAtRisk = status === 'AMBER' || status === 'RED';
+          return {
+            id: item.product_id || item.id,
+            crop: product.crop_type || 'Unknown',
+            icon: cropEmoji(product.crop_type),
+            batch: `Batch #${product.id || item.product_id || 'N/A'}`,
+            vendor: seller.stall_number ? `Stall ${seller.stall_number}` : seller.full_name || 'Unknown seller',
+            status: isAtRisk ? 'At-Risk' : 'Fresh',
+            statusBg: isAtRisk ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700',
+            qty: product.quantity_kg ? `${product.quantity_kg} kg` : '—',
+            days: product.predicted_shelf_life != null ? `${product.predicted_shelf_life} days` : '—',
+            temp: product.latest_temp ? `${product.latest_temp}°C` : '—',
+            rh: product.latest_humidity ? `${product.latest_humidity}%` : '—',
+            priceType: isAtRisk ? 'Rescue Price' : 'Standard Price',
+            price: item.listed_price != null ? `₱${item.listed_price} / kg` : '₱0 / kg',
+            inquiries: item.listed_price ? `${Math.max(1, Math.floor(item.listed_price / 10))} buyers interested` : '0 buyers yet',
+            isAtRisk,
+          };
+        });
 
-        const txResponse = await fetch('http://127.0.0.1:8000/api/transactions/');
-        const liveTransactions = await txResponse.json();
-        setTransactions(liveTransactions);
+        setListings(mappedListings);
 
-
-
-        setTimeout(() => {
-          setListings([
-            { id: 1, crop: 'Eggplant', icon: '🍆', batch: 'Batch #001', vendor: 'Stall 1 • Marhean B.', status: 'At-Risk', statusBg: 'bg-amber-100 text-amber-700', qty: '85 kg', days: '2 days', temp: '33.4°C', rh: '82%', priceType: 'Rescue Price', price: '₱18 / kg', inquiries: '3 buyers interested', isAtRisk: true },
-            { id: 2, crop: 'Eggplant', icon: '🍆', batch: 'Batch #004', vendor: 'Stall 1 • Marhean B.', status: 'At-Risk', statusBg: 'bg-amber-100 text-amber-700', qty: '40 kg', days: '1.5 days', temp: '34.1°C', rh: '60%', priceType: 'Rescue Price', price: '₱16 / kg', inquiries: '1 buyer interested', isAtRisk: true },
-            { id: 3, crop: 'Cucumber', icon: '🥒', batch: 'Batch #002', vendor: 'Stall 1 • Marhean B.', status: 'Fresh', statusBg: 'bg-emerald-100 text-emerald-700', qty: '60 kg', days: '4 days', temp: '29.8°C', rh: '78%', priceType: 'Standard Price', price: '₱22 / kg', inquiries: '2 buyers interested', isAtRisk: false },
-            { id: 4, crop: 'Carrots', icon: '🥕', batch: 'Batch #003', vendor: 'Stall 1 • Marhean B.', status: 'Fresh', statusBg: 'bg-emerald-100 text-emerald-700', qty: '120 kg', days: '8 days', temp: '24.5°C', rh: '91%', priceType: 'Standard Price', price: '₱15 / kg', inquiries: '5 buyers interested', isAtRisk: false },
-            { id: 5, crop: 'Cucumber', icon: '🥒', batch: 'Batch #005', vendor: 'Stall 77 • Dominic G.', status: 'Fresh', statusBg: 'bg-emerald-100 text-emerald-700', qty: '75 kg', days: '5 days', temp: '27.3°C', rh: '85%', priceType: 'Standard Price', price: '₱21 / kg', inquiries: '0 buyers yet', isAtRisk: false },
-          ]);
-
-          setTransactions([
-            { id: '#TXN-041', buyerName: 'Maria Buenaflor', buyerRole: 'Restaurant owner', crop: '🍆 Eggplant', batch: 'Batch #001', qty: '20 kg', total: '₱360', type: 'Rescue', typeBg: 'bg-amber-100 text-amber-700', typeDot: 'text-amber-500', status: 'Confirmed', statusBg: 'bg-blue-50 text-blue-700', statusDot: 'text-blue-500', time: '9:43 AM' },
-            { id: '#TXN-040', buyerName: 'Jose Reyes', buyerRole: 'Sari-sari store', crop: '🥕 Carrots', batch: 'Batch #003', qty: '15 kg', total: '₱225', type: 'Standard', typeBg: 'bg-emerald-100 text-emerald-700', typeDot: 'text-emerald-500', status: 'Confirmed', statusBg: 'bg-blue-50 text-blue-700', statusDot: 'text-blue-500', time: '8:30 AM' },
-            { id: '#TXN-039', buyerName: 'Ana Perez', buyerRole: 'Food processor', crop: '🥒 Cucumber', batch: 'Batch #002', qty: '25 kg', total: '₱475', type: 'Standard', typeBg: 'bg-emerald-100 text-emerald-700', typeDot: 'text-emerald-500', status: 'Pending pickup', statusBg: 'bg-slate-100 text-slate-700', statusDot: 'text-slate-400', time: '7:15 AM' },
-          ]);
-          
-          setIsLoading(false);
-        }, 500); // 500ms artificial delay to show loading state
-
+        setTransactions([
+          { id: '#TXN-041', buyerName: 'Maria Buenaflor', buyerRole: 'Restaurant owner', crop: '🍆 Eggplant', batch: 'Batch #001', qty: '20 kg', total: '₱360', type: 'Rescue', typeBg: 'bg-amber-100 text-amber-700', typeDot: 'text-amber-500', status: 'Confirmed', statusBg: 'bg-blue-50 text-blue-700', statusDot: 'text-blue-500', time: '9:43 AM' },
+          { id: '#TXN-040', buyerName: 'Jose Reyes', buyerRole: 'Sari-sari store', crop: '🥕 Carrots', batch: 'Batch #003', qty: '15 kg', total: '₱225', type: 'Standard', typeBg: 'bg-emerald-100 text-emerald-700', typeDot: 'text-emerald-500', status: 'Confirmed', statusBg: 'bg-blue-50 text-blue-700', statusDot: 'text-blue-500', time: '8:30 AM' },
+          { id: '#TXN-039', buyerName: 'Ana Perez', buyerRole: 'Food processor', crop: '🥒 Cucumber', batch: 'Batch #002', qty: '25 kg', total: '₱475', type: 'Standard', typeBg: 'bg-emerald-100 text-emerald-700', typeDot: 'text-emerald-500', status: 'Pending pickup', statusBg: 'bg-slate-100 text-slate-700', statusDot: 'text-slate-400', time: '7:15 AM' },
+        ]);
       } catch (error) {
         console.error("Error fetching live marketplace data:", error);
+        setListings([]);
+        setTransactions([]);
+      } finally {
         setIsLoading(false);
       }
     };
 
     fetchMarketplaceData();
-    
-    // Optional: Refresh data every 30 seconds for a truly "live" feel
-    // const interval = setInterval(fetchMarketplaceData, 30000);
-    // return () => clearInterval(interval);
   }, []);
 
   if (isLoading) {

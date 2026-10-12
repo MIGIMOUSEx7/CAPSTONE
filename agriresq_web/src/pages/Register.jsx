@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { api } from '../api/supabaseApi';
 
 export default function Register({ onRegister, onBack }) {
   const [form, setForm] = useState({
@@ -34,41 +35,31 @@ export default function Register({ onRegister, onBack }) {
 
     setIsLoading(true);
 
-    // Create the payload matching your Django RegisterSerializer
-    const payload = {
-      full_name: form.name,
-      email: form.email,
-      password: form.password,
-      role: "WHOLESALER",       // Defaulting to Wholesaler for your Capstone
-      stall_number: "Stall 1"   // Required by Django if role is WHOLESALER
-    };
-
     try {
-      // Actually send the data to Django!
-      const response = await fetch('http://127.0.0.1:8000/api/auth/register/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      await api.register({
+        full_name: form.name,
+        email: form.email,
+        password: form.password,
+        role: "WHOLESALER",
+        stall_number: "Stall 1",
       });
 
-      const data = await response.json();
+      const profile = await api.me();
+      localStorage.setItem("agriresq_current_user", JSON.stringify({
+        id: profile?.id,
+        email: profile?.email || form.email,
+        full_name: profile?.full_name || form.name,
+        role: profile?.role || 'WHOLESALER',
+        stall_number: profile?.stall_number || 'Stall 1',
+      }));
 
-      if (response.ok) {
-        setSuccess(true);
-        setTimeout(() => {
-          onRegister();
-        }, 1500);
-      } else {
-        console.error("Django Validation Error:", data); // Add this line!
-        
-        // Show the actual error message coming from Django (e.g., "Email already registered")
-        if (data.email) setError(data.email[0]);
-        else if (data.password) setError(data.password[0]);
-        else setError(data.detail || "Registration failed. Please check your details.");
-      }
+      setSuccess(true);
+      setTimeout(() => {
+        onRegister();
+      }, 1500);
     } catch (err) {
-      console.error("Network error:", err);
-      setError("Cannot connect to the server. Is Django running?");
+      console.error("Registration error:", err);
+      setError(err.message || "Registration failed. Please check your details.");
     } finally {
       setIsLoading(false);
     }

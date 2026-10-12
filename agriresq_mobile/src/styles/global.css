@@ -1,23 +1,24 @@
 :root {
-  --primary: #004D40;
-  --primary-dark: #00352c;
-  --primary-light: #00695C;
-  --mint: #80CBC4;
-  --mint-light: #B2DFDB;
-  --accent: #FF9800;
-  --accent-yellow: #FFC107;
-  --fresh: #4CAF50;
-  --at-risk: #FF9800;
-  --spoiled: #F44336;
+  --primary: #155E52;
+  --primary-dark: #0D3F38;
+  --primary-light: #238275;
+  --mint: #73C8B0;
+  --mint-light: #DDF3EA;
+  --accent: #E8893D;
+  --accent-yellow: #F5C451;
+  --fresh: #3B9B67;
+  --at-risk: #E8893D;
+  --spoiled: #D9574A;
   --white: #FFFFFF;
-  --gray-50: #F5F7FA;
-  --gray-100: #ECEFF1;
+  --gray-50: #F4F7F4;
+  --gray-100: #E3EBE6;
+  --gray-200: #D2DED7;
   --gray-300: #B0BEC5;
   --gray-600: #546E7A;
-  --gray-800: #37474F;
-  --shadow: 0 4px 20px rgba(0, 77, 64, 0.12);
-  --radius: 16px;
-  --radius-sm: 10px;
+  --gray-800: #263B36;
+  --shadow: 0 8px 24px rgba(21, 94, 82, 0.09);
+  --radius: 14px;
+  --radius-sm: 9px;
   --nav-height: 72px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -33,8 +34,8 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--gray-50);
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #EAF1EC;
   color: var(--gray-800);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
@@ -59,7 +60,7 @@ button, input, textarea, select {
 }
 
 .page {
-  padding: 16px 16px calc(var(--nav-height) + var(--safe-bottom) + 16px);
+  padding: 20px 18px calc(var(--nav-height) + var(--safe-bottom) + 20px);
   min-height: 100vh;
 }
 
@@ -108,6 +109,24 @@ button, input, textarea, select {
   cursor: not-allowed;
 }
 
+/* compact icon button */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+}
+.icon-btn:active { transform: scale(0.98); }
+.icon-btn.green { background: rgba(76,175,80,0.08); border-color: rgba(76,175,80,0.18); color: var(--fresh); }
+.icon-btn.danger { background: rgba(244,67,54,0.06); border-color: rgba(244,67,54,0.12); color: var(--spoiled); }
+
 .input-group {
   margin-bottom: 14px;
 }
@@ -141,6 +160,7 @@ button, input, textarea, select {
   background: var(--white);
   border-radius: var(--radius);
   padding: 16px;
+  border: 1px solid rgba(21, 94, 82, 0.06);
   box-shadow: var(--shadow);
 }
 
@@ -162,6 +182,7 @@ button, input, textarea, select {
 }
 
 .section-title {
+  font-family: 'Space Grotesk', sans-serif;
   font-size: 18px;
   font-weight: 700;
   color: var(--primary);

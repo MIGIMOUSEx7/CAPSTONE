@@ -1,4 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../api/supabaseApi';
+
+const cropEmoji = (crop) => {
+  const normalized = (crop || '').toLowerCase();
+  if (normalized.includes('eggplant')) return '🍆';
+  if (normalized.includes('cucumber')) return '🥒';
+  if (normalized.includes('carrot')) return '🥕';
+  if (normalized.includes('tomato')) return '🍅';
+  if (normalized.includes('lettuce')) return '🥬';
+  return '🌾';
+};
+
+const statusBadge = (status) => {
+  if (status === 'AMBER') return 'bg-amber-100 text-amber-700';
+  if (status === 'RED') return 'bg-rose-100 text-rose-700';
+  return 'bg-emerald-100 text-emerald-700';
+};
 
 const Batches = () => {
   const [batches, setBatches] = useState([]);
@@ -7,47 +24,29 @@ const Batches = () => {
   useEffect(() => {
     const fetchBatches = async () => {
       try {
-        // FIX 1: previously sent no Authorization header, so the backend
-        // (CropBatchViewSet, permission_classes = AllowAny) treated this
-        // as an anonymous request. Its get_queryset() then returned
-        // qs.none() for any user without a profile — which silently
-        // produced an empty [] rather than a clear error. Attaching the
-        // token lets the backend actually scope real batches to this user.
-        //
-        // Same as Sensors.jsx: confirm the real localStorage key in
-        // DevTools > Application > Local Storage, then simplify this to
-        // a single localStorage.getItem('yourActualKey').
-        const token =
-          localStorage.getItem('token') ||
-          localStorage.getItem('authToken') ||
-          localStorage.getItem('access_token');
+        const data = await api.batches();
+        const mapped = (data || []).map((row) => ({
+          id: row.id,
+          node: row.iot_node_id ? `Node ${row.iot_node_id}` : 'Terminal 1',
+          crop: row.crop_type || 'Unknown',
+          scientific: row.crop_type || '',
+          icon: cropEmoji(row.crop_type),
+          qty: row.quantity_kg ? `${row.quantity_kg} kg` : '—',
+          price: row.current_price_per_kg ? `₱${row.current_price_per_kg}` : '₱0',
+          arrival: row.harvest_datetime ? new Date(row.harvest_datetime).toLocaleString() : 'TBD',
+          days: row.predicted_shelf_life != null ? row.predicted_shelf_life : 0,
+          daysColor: row.freshness_status === 'AMBER' ? 'text-amber-600' : row.freshness_status === 'RED' ? 'text-rose-600' : 'text-emerald-600',
+          temp: row.latest_temp ? `${row.latest_temp}°C` : '—',
+          rh: row.latest_humidity ? `${row.latest_humidity}%` : '—',
+          status: row.freshness_status || 'Unknown',
+          statusBg: statusBadge(row.freshness_status),
+        }));
 
-        const response = await fetch('http://127.0.0.1:8000/api/batches/', {
-          headers: token ? { 'Authorization': `Token ${token}` } : {},
-        });
-
-        if (!response.ok) {
-          console.error('Failed to fetch batches, status:', response.status);
-          setBatches([]);
-          setIsLoading(false);
-          return;
-        }
-
-        const liveBatches = await response.json();
-        setBatches(liveBatches);
-        setIsLoading(false);
-
-        // FIX 2: removed the setTimeout() block that used to run right
-        // after this and silently overwrite whatever the backend
-        // returned with hardcoded mock rows. That meant the table was
-        // ALWAYS showing fake data, regardless of what /api/batches/
-        // actually returned. If you still want placeholder rows for
-        // demoing when the backend has no real batches yet, gate them
-        // behind a check like `if (liveBatches.length === 0) { ... }`
-        // instead of unconditionally overwriting real data.
+        setBatches(mapped);
       } catch (error) {
         console.error("Failed to fetch batches:", error);
         setBatches([]);
+      } finally {
         setIsLoading(false);
       }
     };

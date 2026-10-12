@@ -4,6 +4,8 @@ import AIVision from './pages/AIVision';
 import Splash from './pages/Splash';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import BatchDetail from './pages/BatchDetail';
 import NewBatch from './pages/NewBatch';
@@ -37,6 +39,8 @@ export default function App() {
           <Route path="/" element={<PublicRoute><Splash /></PublicRoute>} />
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+          <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
           
           {/* AI Testing Route (Public) */}
           <Route path="/ai-test" element={<AIVision />} />

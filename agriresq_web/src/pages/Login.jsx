@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from '../api/supabaseApi';
 
 export default function Login({ onLogin, onRegister }) {
   const [email, setEmail] = useState("");
@@ -19,27 +20,23 @@ export default function Login({ onLogin, onRegister }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/auth/login/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, password: password })
-      });
+      const user = await api.login(email, password);
+      const profile = await api.me();
 
-      const data = await response.json();
+      const currentUser = {
+        id: user.id,
+        email: user.email,
+        full_name: profile?.full_name || '',
+        role: profile?.role || '',
+        stall_number: profile?.stall_number || '',
+        market_location: profile?.market_location || '',
+      };
 
-      if (response.ok) {
-        // SUCCESS! Save the Django token to the browser
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("agriresq_current_user", JSON.stringify(data.user));
-        
-        onLogin(); // Proceed to the Dashboard!
-      } else {
-        // Show exact error from Django (e.g., "Invalid credentials")
-        setError(data.detail || "Invalid email or password.");
-      }
+      localStorage.setItem("agriresq_current_user", JSON.stringify(currentUser));
+      onLogin(); // Proceed to the Dashboard!
     } catch (err) {
-      console.error("Network error:", err);
-      setError("Cannot connect to server. Is Django running?");
+      console.error("Login error:", err);
+      setError(err.message || "Invalid email or password.");
     } finally {
       setIsLoading(false);
     }

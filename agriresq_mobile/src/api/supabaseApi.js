@@ -20,12 +20,12 @@ async function getSessionUserId() {
 
 export const api = {
   // ── Auth ──────────────────────────────────────────
-  async register({ full_name, email, phone_number, password, role, stall_number, buyer_type }) {
+  async register({ full_name, email, phone_number, password, role, stall_number, buyer_type, avatar_url, market_location }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name, role, stall_number, buyer_type, phone_number },
+        data: { full_name, role, stall_number, buyer_type, phone_number, avatar_url, market_location },
       },
     })
     if (error) throw new Error(error.message)
@@ -34,6 +34,8 @@ export const api = {
         full_name,
         phone_number,
         role,
+        avatar_url: avatar_url || '',
+        market_location: market_location || '',
         stall_number: (role === 'STALL_OPERATOR' || role === 'WHOLESALER') ? stall_number : null,
         buyer_type: role === 'RESCUE_BUYER' ? (buyer_type || 'RETAILER') : null,
       }).eq('id', data.user.id)
@@ -49,6 +51,20 @@ export const api = {
 
   async logout() {
     await supabase.auth.signOut()
+  },
+
+  async sendPasswordResetEmail(email) {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (error) throw new Error(error.message)
+    return data
+  },
+
+  async updatePassword(password) {
+    const { data, error } = await supabase.auth.updateUser({ password })
+    if (error) throw new Error(error.message)
+    return data
   },
 
   async me() {
@@ -75,7 +91,8 @@ export const api = {
 
     let productsQuery = supabase.from('products').select(PRODUCT_SELECT).order('created_at', { ascending: false })
     if (isOperator) {
-      productsQuery = productsQuery.eq('operator_id', userId).neq('freshness_status', 'RED')
+      // Show only operator's active/listed batches in the dashboard so sold/removed ones disappear
+      productsQuery = productsQuery.eq('operator_id', userId).eq('is_listed', true).neq('freshness_status', 'RED')
     } else {
       productsQuery = productsQuery.eq('is_listed', true).neq('freshness_status', 'RED').limit(10)
     }
@@ -201,7 +218,7 @@ export const api = {
     )
     const expires = new Date()
     expires.setDate(expires.getDate() + 2)
-    await supabase.from('marketplace_listings').upsert({
+    const { data: listing, error: listErr } = await supabase.from('marketplace_listings').upsert({
       product_id: product.id,
       operator_id: product.operator_id,
       listed_price: pricing.listed_price,
@@ -209,8 +226,33 @@ export const api = {
       discount_percent: pricing.discount_percent,
       listing_status: 'ACTIVE',
       expires_at: expires.toISOString(),
-    }, { onConflict: 'product_id' })
+    }, { onConflict: 'product_id' }).select().single()
+    if (listErr) {
+      console.error('Listing upsert error', listErr)
+      throw new Error(listErr.message || listErr)
+    }
+    console.debug('Listing upserted', listing)
     await supabase.from('products').update({ is_listed: true }).eq('id', product.id)
+    return listing
+  },
+
+  async getListingByProduct(productId) {
+    try {
+      const { data, error } = await supabase
+        .from('marketplace_listings')
+        .select(LISTING_SELECT)
+        .eq('product_id', productId)
+        .maybeSingle()
+      if (error) {
+        console.error('getListingByProduct error', error)
+        throw new Error(error.message || error)
+      }
+      console.debug('getListingByProduct', productId, data)
+      return data
+    } catch (err) {
+      console.error('getListingByProduct exception', err)
+      throw err
+    }
   },
 
   async predict(id) {
@@ -231,6 +273,20 @@ export const api = {
       chu_accumulated: latest?.chu_accumulated,
       vpd: latest?.vpd_value,
     }
+  },
+
+  async batchDetectionPercent(productId) {
+    const since = new Date()
+    since.setDate(since.getDate() - 21)
+    const { data: preds, error } = await supabase
+      .from('spoilage_predictions')
+      .select('*')
+      .eq('product_id', productId)
+      .gte('created_at', since.toISOString())
+    if (error) throw new Error(error.message || error)
+    if (!preds || preds.length === 0) return { percent: 0, total: 0 }
+    const flagged = preds.filter((p) => p.predicted_status !== 'GREEN').length
+    return { percent: Math.round((flagged / preds.length) * 100), total: preds.length }
   },
 
   /** Analyze image via Django backend (ESP32-CAM / upload flow) */
@@ -255,9 +311,18 @@ export const api = {
     if (params.crop_type) {
       query = query.eq('products.crop_type', params.crop_type)
     }
-    const { data, error } = await query
-    if (error) throw new Error(error.message)
-    return data
+    try {
+      const { data, error } = await query
+      if (error) {
+        console.error('marketplace fetch error', error)
+        throw new Error(error.message || error)
+      }
+      console.debug('marketplace fetch', params, (data || []).length)
+      return data
+    } catch (err) {
+      console.error('marketplace exception', err)
+      throw err
+    }
   },
 
   async listing(id) {
@@ -304,6 +369,21 @@ export const api = {
     return () => supabase.removeChannel(channel)
   },
 
+  subscribeMarketplace(callback) {
+    const channel = supabase
+      .channel('marketplace-listings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'marketplace_listings' }, (payload) => callback(payload))
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  },
+
+  async saveListing(listingId) {
+    const userId = await getSessionUserId()
+    const { data, error } = await supabase.from('saved_listings').upsert({ listing_id: listingId, user_id: userId }, { onConflict: 'listing_id,user_id' }).select().single()
+    if (error) throw new Error(error.message || error)
+    return data
+  },
+
   // ── Chat ──────────────────────────────────────────
   async chatThreads(archived = false) {
     const userId = await getSessionUserId()
@@ -348,6 +428,37 @@ export const api = {
 
   async startChat(listingId) {
     const userId = await getSessionUserId()
+    // Ensure only buyers can start chats
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single()
+    // If the current user is an operator, return an existing thread for this listing (if any).
+    // Operators should not create buyer threads from the client — buyers initiate chats.
+    if (profile?.role === 'STALL_OPERATOR') {
+      const { data: existing, error: existingErr } = await supabase.from('chat_threads').select('*').eq('listing_id', listingId).eq('operator_id', userId).maybeSingle()
+      if (existingErr) {
+        console.error('Error fetching operator chat thread', existingErr)
+        throw new Error(existingErr.message || existingErr)
+      }
+      return existing || null
+    }
+    // Prefer server-side RPC `create_chat_thread` which enforces DB-level checks (RLS)
+    try {
+      // Skip RPC if previously discovered unavailable
+      if (!window.__createChatRpcUnavailable) {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('create_chat_thread', { listing_id: listingId })
+        if (!rpcErr && rpcData) {
+          return Array.isArray(rpcData) ? rpcData[0] : rpcData
+        }
+        // mark RPC unavailable so we don't keep hitting a missing endpoint
+        console.debug('create_chat_thread RPC returned error, falling back to client upsert')
+        window.__createChatRpcUnavailable = true
+      }
+    } catch (e) {
+      // RPC threw (404 or network); mark unavailable and continue to fallback.
+      window.__createChatRpcUnavailable = true
+      console.debug('RPC create_chat_thread threw, falling back to client upsert')
+    }
+
+    // Fallback: client-side upsert (kept for backwards compatibility)
     const { data: listing } = await supabase
       .from('marketplace_listings')
       .select('operator_id')
@@ -391,12 +502,58 @@ export const api = {
 
   /** Exit popup: archive if transaction completed */
   async completeTransaction(threadId, completed) {
+    // fetch thread and participant ids
+    const { data: thread } = await supabase.from('chat_threads').select('listing_id, operator_id, buyer_id').eq('id', threadId).single()
+
     if (completed) {
+      // Archive thread and mark transaction complete
       await supabase.from('chat_threads').update({
         transaction_completed: true,
         is_archived: true,
         updated_at: new Date().toISOString(),
       }).eq('id', threadId)
+
+      try {
+        const currentUser = await getSessionUserId()
+        // If operator performed the completion, mark listing sold and unlist product
+        if (currentUser === thread.operator_id) {
+          if (thread?.listing_id) {
+            await supabase.from('marketplace_listings').update({ listing_status: 'SOLD' }).eq('id', thread.listing_id)
+            const { data: listing } = await supabase.from('marketplace_listings').select('product_id').eq('id', thread.listing_id).single()
+            if (listing?.product_id) {
+              await supabase.from('products').update({ is_listed: false }).eq('id', listing.product_id)
+            }
+          }
+
+          // Notify both participants
+          try {
+            const msg = 'Transaction completed — listing marked as sold.'
+            if (thread.operator_id) {
+              await supabase.from('notifications').insert({ user_id: thread.operator_id, notification_type: 'ORDER_UPDATE', title: 'Sale Completed', message: msg })
+            }
+            if (thread.buyer_id) {
+              await supabase.from('notifications').insert({ user_id: thread.buyer_id, notification_type: 'ORDER_UPDATE', title: 'Sale Completed', message: msg })
+            }
+          } catch (nerr) {
+            console.error('Error inserting notifications after completeTransaction', nerr)
+          }
+        } else {
+          // Buyer marked completed — notify operator to finalize the sale (operator must mark listing sold)
+          try {
+            const msg = 'Buyer marked the transaction complete. Please mark the listing as sold in the Marketplace.'
+            if (thread.operator_id) {
+              await supabase.from('notifications').insert({ user_id: thread.operator_id, notification_type: 'ORDER_UPDATE', title: 'Buyer Completed', message: msg })
+            }
+            if (thread.buyer_id) {
+              await supabase.from('notifications').insert({ user_id: thread.buyer_id, notification_type: 'ORDER_UPDATE', title: 'You marked complete', message: 'Thank you — the operator will finalize the sale.' })
+            }
+          } catch (nerr) {
+            console.error('Error inserting buyer-complete notifications', nerr)
+          }
+        }
+      } catch (e) {
+        console.error('Error handling post-completion listing/product changes', e)
+      }
     } else {
       await supabase.from('chat_threads').update({
         transaction_completed: false,
@@ -411,6 +568,31 @@ export const api = {
     const { data, error } = await supabase.from('iot_nodes').select('*').eq('operator_id', userId)
     if (error) throw new Error(error.message)
     return data
+  },
+
+  // Mark a listing as sold (operator action)
+  async markListingSold(listingId) {
+    const userId = await getSessionUserId()
+    // Ensure operator owns the listing
+    const { data: listing, error: lErr } = await supabase.from('marketplace_listings').select('operator_id, product_id').eq('id', listingId).single()
+    if (lErr) throw new Error(lErr.message || lErr)
+    if (listing.operator_id !== userId) throw new Error('Not authorized')
+    await supabase.from('marketplace_listings').update({ listing_status: 'SOLD' }).eq('id', listingId)
+    if (listing.product_id) {
+      await supabase.from('products').update({ is_listed: false }).eq('id', listing.product_id)
+    }
+    return true
+  },
+
+  // Remove a batch (product) by operator — deletes product and cascades listing
+  async removeBatch(productId) {
+    const userId = await getSessionUserId()
+    const { data: prod, error: pErr } = await supabase.from('products').select('operator_id').eq('id', productId).single()
+    if (pErr) throw new Error(pErr.message || pErr)
+    if (prod.operator_id !== userId) throw new Error('Not authorized')
+    const { error: delErr } = await supabase.from('products').delete().eq('id', productId)
+    if (delErr) throw new Error(delErr.message || delErr)
+    return true
   },
 }
 
