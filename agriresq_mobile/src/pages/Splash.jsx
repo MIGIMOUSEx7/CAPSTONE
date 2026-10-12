@@ -2,10 +2,11 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowRight, LogIn } from 'lucide-react'
 import './Splash.css'
 
+
 export default function Splash() {
   const navigate = useNavigate()
   return (
-    <div className="splash page-no-nav">
+    <div className="splash splash--bulua page-no-nav">
       <div className="splash-content">
         <div className="logo-wrap">
           <div className="logo-icon">🌿</div>

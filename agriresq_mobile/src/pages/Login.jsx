@@ -27,7 +27,7 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-page page-no-nav">
+   <div className="auth-page auth-page--bulua page-no-nav">
       <div className="auth-header">
         <Link to="/" className="back-link">← Back</Link>
         <h2>Welcome Back</h2>

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from '../api/supabaseApi';
+import AuthSidePanel from "./Authsidepanel";
 
 export default function Login({ onLogin, onRegister }) {
   const [email, setEmail] = useState("");
@@ -45,50 +46,7 @@ export default function Login({ onLogin, onRegister }) {
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
 
-      {/* Left green panel */}
-      <div style={{
-        background: "#1D9E75",
-        width: "280px",
-        flexShrink: 0,
-        padding: "2.5rem 2rem",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between"
-      }}>
-        <div>
-          <div style={{
-            width: "40px", height: "40px",
-            background: "rgba(255,255,255,0.15)",
-            borderRadius: "8px",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            marginBottom: "12px", fontSize: "20px"
-          }}>🌿</div>
-          <p style={{ fontSize: "20px", fontWeight: 600, color: "#E1F5EE", margin: 0 }}>AgriResQ</p>
-          <p style={{ fontSize: "12px", color: "#9FE1CB", margin: "4px 0 0" }}>Digital Vegetable Platform</p>
-        </div>
-
-        <div>
-          <p style={{ fontSize: "13px", color: "#9FE1CB", lineHeight: 1.6 }}>
-            Connecting farmers and buyers across Cagayan de Oro City.
-          </p>
-          <div style={{
-            background: "rgba(255,255,255,0.12)",
-            borderRadius: "8px", padding: "8px 12px", marginTop: "8px"
-          }}>
-            <div style={{ fontSize: "18px", fontWeight: 600, color: "#E1F5EE" }}>42</div>
-            <div style={{ fontSize: "11px", color: "#9FE1CB" }}>Active respondents</div>
-          </div>
-          <div style={{
-            background: "rgba(255,255,255,0.12)",
-            borderRadius: "8px", padding: "8px 12px", marginTop: "6px"
-          }}>
-            <div style={{ fontSize: "18px", fontWeight: 600, color: "#E1F5EE" }}>Bulua</div>
-            <div style={{ fontSize: "11px", color: "#9FE1CB" }}>Primary terminal</div>
-          </div>
-        </div>
-
-        <p style={{ fontSize: "11px", color: "#5DCAA5", margin: 0 }}>Cagayan de Oro City, PH</p>
-      </div>
+      <AuthSidePanel />
 
       {/* Right form panel */}
       <div style={{
@@ -162,7 +120,7 @@ export default function Login({ onLogin, onRegister }) {
             </div>
 
             <div style={{ textAlign: "right", marginBottom: "1.5rem" }}>
-              <Link to="/forgot-password" style={{ fontSize: "12px", color: "#1D9E75", textDecoration: "none" }}>
+              <Link to="/forgot-password" style={{ fontSize: "12px", color: "#155E52", textDecoration: "none" }}>
                 Forgot password?
               </Link>
             </div>
@@ -172,15 +130,15 @@ export default function Login({ onLogin, onRegister }) {
               disabled={isLoading}
               style={{
                 width: "100%", padding: "11px",
-                background: "#1D9E75", color: "#fff",
+                background: "#155E52", color: "#fff",
                 border: "none", borderRadius: "8px",
                 fontSize: "15px", fontWeight: 600,
                 cursor: isLoading ? "not-allowed" : "pointer", 
                 marginBottom: "1rem",
                 opacity: isLoading ? 0.7 : 1
               }}
-              onMouseOver={(e) => !isLoading && (e.target.style.background = "#0F6E56")}
-              onMouseOut={(e) => !isLoading && (e.target.style.background = "#1D9E75")}
+              onMouseOver={(e) => !isLoading && (e.target.style.background = "#0D3F38")}
+              onMouseOut={(e) => !isLoading && (e.target.style.background = "#155E52")}
             >
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
@@ -192,7 +150,7 @@ export default function Login({ onLogin, onRegister }) {
                 onClick={onRegister}
                 style={{
                   background: "none", border: "none",
-                  color: "#1D9E75", fontSize: "13px",
+                  color: "#155E52", fontSize: "13px",
                   fontWeight: 600, cursor: "pointer", padding: 0
                 }}
               >

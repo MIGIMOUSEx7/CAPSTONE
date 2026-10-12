@@ -12,8 +12,8 @@
 #include <DHT.h>
 
 // -------- CONFIGURE THESE --------
-const char* WIFI_SSID     = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* WIFI_SSID     = "HOME_WIFI";
+const char* WIFI_PASSWORD = "BV#!$@n02026";
 const char* API_URL       = "http://YOUR_SERVER_IP:8000/api/sensor-data/";
 const char* DEVICE_TOKEN  = "YOUR_DEVICE_TOKEN_FROM_DJANGO"; // Fixed: Removed the space
 const int   BATCH_ID      = 1;  // Crop batch ID linked to this node

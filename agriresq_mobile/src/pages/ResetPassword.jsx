@@ -42,7 +42,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="auth-page page-no-nav">
+    <div className="auth-page auth-page--bulua page-no-nav">
       <div className="auth-header">
         <Link to="/login" className="back-link">← Back</Link>
         <h2>Reset Password</h2>

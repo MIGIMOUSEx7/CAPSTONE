@@ -32,7 +32,7 @@ export default function Register() {
   }
 
   return (
-    <div className="auth-page page-no-nav">
+    <div className="auth-page auth-page--bulua page-no-nav">
       <div className="auth-header">
         <Link to="/" className="back-link">← Back</Link>
         <h2>Create Account</h2>
@@ -89,3 +89,4 @@ export default function Register() {
     </div>
   )
 }
+

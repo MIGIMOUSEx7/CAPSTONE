@@ -12,9 +12,9 @@
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug",
-            "executable": "/Users/flomarcandole/Documents/PlatformIO/Projects/CAPSTONE/.pio/build/ai_thinker_esp32cam/firmware.elf",
+            "executable": "C:/Users/ADMIN/Documents/capstone/final/AGRIRESQ/CAPSTONE/.pio/build/ai_thinker_esp32cam/firmware.elf",
             "projectEnvName": "ai_thinker_esp32cam",
-            "toolchainBinDir": "/Users/flomarcandole/.platformio/packages/toolchain-xtensa-esp32/bin",
+            "toolchainBinDir": "C:/Users/ADMIN/.platformio/packages/toolchain-xtensa-esp32/bin",
             "internalConsoleOptions": "openOnSessionStart",
             "preLaunchTask": {
                 "type": "PlatformIO",
@@ -25,18 +25,18 @@
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug (skip Pre-Debug)",
-            "executable": "/Users/flomarcandole/Documents/PlatformIO/Projects/CAPSTONE/.pio/build/ai_thinker_esp32cam/firmware.elf",
+            "executable": "C:/Users/ADMIN/Documents/capstone/final/AGRIRESQ/CAPSTONE/.pio/build/ai_thinker_esp32cam/firmware.elf",
             "projectEnvName": "ai_thinker_esp32cam",
-            "toolchainBinDir": "/Users/flomarcandole/.platformio/packages/toolchain-xtensa-esp32/bin",
+            "toolchainBinDir": "C:/Users/ADMIN/.platformio/packages/toolchain-xtensa-esp32/bin",
             "internalConsoleOptions": "openOnSessionStart"
         },
         {
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug (without uploading)",
-            "executable": "/Users/flomarcandole/Documents/PlatformIO/Projects/CAPSTONE/.pio/build/ai_thinker_esp32cam/firmware.elf",
+            "executable": "C:/Users/ADMIN/Documents/capstone/final/AGRIRESQ/CAPSTONE/.pio/build/ai_thinker_esp32cam/firmware.elf",
             "projectEnvName": "ai_thinker_esp32cam",
-            "toolchainBinDir": "/Users/flomarcandole/.platformio/packages/toolchain-xtensa-esp32/bin",
+            "toolchainBinDir": "C:/Users/ADMIN/.platformio/packages/toolchain-xtensa-esp32/bin",
             "internalConsoleOptions": "openOnSessionStart",
             "loadMode": "manual"
         }
