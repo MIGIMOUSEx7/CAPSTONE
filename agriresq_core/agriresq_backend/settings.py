@@ -14,7 +14,15 @@ SECRET_KEY = os.environ.get(
     'django-insecure-dev-only-change-in-production-!lkn85x2',
 )
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',')
+
+# Local dev: allow any host so ESP32-CAMs can reach the laptop by LAN IP.
+# Production (Render): only the hosts listed here / in the ALLOWED_HOSTS env var.
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
+else:
+    ALLOWED_HOSTS = os.environ.get(
+        'ALLOWED_HOSTS', '.onrender.com,localhost,127.0.0.1'
+    ).split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -32,6 +40,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # serves static files (admin CSS) on Render
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -40,11 +49,21 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173',
-).split(',')
+# Set CORS_ALLOWED_ORIGINS on Render to your frontend URL, e.g. https://agriresq-web.onrender.com
+CORS_ALLOWED_ORIGINS = [
+    o.strip() for o in os.environ.get(
+        'CORS_ALLOWED_ORIGINS',
+        'http://localhost:5173,http://127.0.0.1:5173',
+    ).split(',') if o.strip()
+]
 CORS_ALLOW_CREDENTIALS = True
+
+# Needed for Django admin login / CSRF over https on Render
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.environ.get(
+        'CSRF_TRUSTED_ORIGINS', 'https://*.onrender.com'
+    ).split(',') if o.strip()
+]
 
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
@@ -86,7 +105,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'agriresq_backend.wsgi.application'
 
-# Supabase PostgreSQL or SQLite fallback for local dev
+# Supabase PostgreSQL (set DATABASE_URL on Render) or SQLite fallback for local dev
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
     DATABASES = {
@@ -125,6 +144,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Security headers (production)
 if not DEBUG:
+    # Render terminates HTTPS at its proxy; without this header setting the
+    # SSL redirect below would loop forever.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -155,11 +177,9 @@ SCAN_KEEP_DAYS = int(os.environ.get('SCAN_KEEP_DAYS', '30'))
 ML_MODEL_DIR = Path(os.environ.get('ML_MODEL_DIR', PROJECT_ROOT / 'ML' / 'deploy'))
 
 # Address the ESP32-CAM uses to reach this server. Empty = auto-detect the laptop's LAN IP.
+# On Render set this to your https://<service>.onrender.com URL.
 DEVICE_SERVER_URL = os.environ.get('DEVICE_SERVER_URL', '')
 DJANGO_PORT = os.environ.get('DJANGO_PORT', '8000')
 
 # JPEG uploads from the camera
 DATA_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024
-
-
-ALLOWED_HOSTS = ['*']
