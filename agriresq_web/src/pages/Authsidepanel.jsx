@@ -1,4 +1,3 @@
-import React from "react";
 import stallPhoto from "../assets/bulua-stall.jpg";
 
 // Shared left panel for Login and Register so the photo, crop and

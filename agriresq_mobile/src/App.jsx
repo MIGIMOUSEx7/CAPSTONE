@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationsProvider } from './context/NotificationsContext';
+import NotificationToast from './components/NotificationToast';
 import AIVision from './pages/AIVision';
 import Splash from './pages/Splash';
 import Login from './pages/Login';
@@ -16,6 +18,11 @@ import Chat from './pages/Chat';
 import Notifications from './pages/Notifications';
 import Profile from './pages/Profile';
 import AccountSettings from './pages/AccountSettings';
+import Devices from './pages/Devices';
+import AddDevice from './pages/AddDevice';
+import DeviceDetail from './pages/DeviceDetail';
+import Gallery from './pages/Gallery';
+import Basis from './pages/Basis';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -35,6 +42,8 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <NotificationsProvider>
+        <NotificationToast />
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<PublicRoute><Splash /></PublicRoute>} />
@@ -43,8 +52,6 @@ export default function App() {
           <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
           <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
           
-          {/* AI Testing Route (Public) */}
-          <Route path="/ai-test" element={<AIVision />} />
           
           {/* Private Routes */}
           <Route path="/account-settings" element={<PrivateRoute><AccountSettings /></PrivateRoute>} />
@@ -57,9 +64,18 @@ export default function App() {
           <Route path="/chat/:id" element={<PrivateRoute><Chat /></PrivateRoute>} />
           <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+          <Route path="/basis" element={<PrivateRoute><Basis /></PrivateRoute>} />
+
+          {/* ESP32-CAM devices (smart-home style setup) */}
+          <Route path="/devices" element={<PrivateRoute><Devices /></PrivateRoute>} />
+          <Route path="/devices/add" element={<PrivateRoute><AddDevice /></PrivateRoute>} />
+          <Route path="/devices/:id" element={<PrivateRoute><DeviceDetail /></PrivateRoute>} />
+          <Route path="/gallery" element={<PrivateRoute><Gallery /></PrivateRoute>} />
+          <Route path="/ai-test" element={<PrivateRoute><AIVision /></PrivateRoute>} />
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </NotificationsProvider>
       </BrowserRouter>
     </AuthProvider>
   );

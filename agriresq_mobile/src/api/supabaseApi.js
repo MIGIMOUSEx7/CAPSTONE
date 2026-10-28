@@ -6,11 +6,26 @@ const PRODUCT_SELECT = `
   profiles:operator_id (full_name, stall_number, market_location, is_verified)
 `
 
+// Buyers never read sensor data: listings are selected without the climate table.
 const LISTING_SELECT = `
   *,
   products:product_id (${PRODUCT_SELECT}),
   profiles:operator_id (full_name, stall_number)
 `
+
+// Operator queries also embed the private product_climate row (object, array or null). The table only exists
+// after supabase/010_sensor_columns.sql, so if the embed is rejected the same query is retried without it.
+const OWNER_PRODUCT_SELECT = `
+  *,
+  product_climate(*),
+  profiles:operator_id (full_name, stall_number, market_location, is_verified)
+`
+
+async function withClimate(run) {
+  const first = await run(OWNER_PRODUCT_SELECT)
+  if (!first.error) return first
+  return run(PRODUCT_SELECT)
+}
 
 async function getSessionUserId() {
   const { data: { session } } = await supabase.auth.getSession()
@@ -18,34 +33,70 @@ async function getSessionUserId() {
   return session.user.id
 }
 
+async function clearLocalSession() {
+  const { error } = await supabase.auth.signOut({ scope: 'local' })
+  if (error) throw new Error(`Unable to clear the current session: ${error.message}`)
+}
+
+function getRegistrationErrorMessage(error) {
+  const message = error.message || 'Unable to create your account.'
+  if (/email.*rate limit|rate limit.*email|over_email_send_rate_limit/i.test(`${error.code || ''} ${message}`)) {
+    return 'Supabase has temporarily limited confirmation emails. This does not mean your email is already registered. Wait before trying again, or configure custom SMTP for the Supabase project. If you receive a confirmation email, verify it before signing in.'
+  }
+  return message
+}
+
 export const api = {
   // ── Auth ──────────────────────────────────────────
-  async register({ full_name, email, phone_number, password, role, stall_number, buyer_type, avatar_url, market_location }) {
+  // Every new account is a rescue buyer; the database ignores any role sent from the app.
+  async register({ full_name, email, phone_number, password, buyer_type, avatar_url, market_location }) {
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      throw new Error('Enter a valid email address.')
+    }
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
       options: {
-        data: { full_name, role, stall_number, buyer_type, phone_number, avatar_url, market_location },
+        emailRedirectTo: `${window.location.origin}/login`,
+        data: { full_name, buyer_type, phone_number, avatar_url, market_location },
       },
     })
-    if (error) throw new Error(error.message)
-    if (data.user) {
-      await supabase.from('profiles').update({
-        full_name,
-        phone_number,
-        role,
-        avatar_url: avatar_url || '',
-        market_location: market_location || '',
-        stall_number: (role === 'STALL_OPERATOR' || role === 'WHOLESALER') ? stall_number : null,
-        buyer_type: role === 'RESCUE_BUYER' ? (buyer_type || 'RETAILER') : null,
-      }).eq('id', data.user.id)
-    }
+    if (error) throw new Error(getRegistrationErrorMessage(error))
+    if (data.session) await clearLocalSession()
     return data.user
   },
 
   async login(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw new Error(error.message)
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    })
+    if (error) {
+      if (error.code === 'email_not_confirmed') {
+        throw new Error('Please verify your email address using the confirmation link before signing in.')
+      }
+      throw new Error(error.message)
+    }
+    if (!data.user.email_confirmed_at) {
+      await clearLocalSession()
+      throw new Error('Please verify your email address using the confirmation link before signing in.')
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single()
+    if (profile?.role === 'ADMIN') {
+      await clearLocalSession()
+      throw new Error('Administrator accounts sign in on the web dashboard.')
+    }
+    if (profileError || !['STALL_OPERATOR', 'RESCUE_BUYER'].includes(profile?.role)) {
+      await clearLocalSession()
+      throw new Error('Your account profile is incomplete. Please contact support.')
+    }
+
     return data.user
   },
 
@@ -89,21 +140,18 @@ export const api = {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single()
     const isOperator = profile?.role === 'STALL_OPERATOR'
 
-    let productsQuery = supabase.from('products').select(PRODUCT_SELECT).order('created_at', { ascending: false })
-    if (isOperator) {
-      // Show only operator's active/listed batches in the dashboard so sold/removed ones disappear
-      productsQuery = productsQuery.eq('operator_id', userId).eq('is_listed', true).neq('freshness_status', 'RED')
-    } else {
-      productsQuery = productsQuery.eq('is_listed', true).neq('freshness_status', 'RED').limit(10)
+    const buildProducts = (select) => {
+      let q = supabase.from('products').select(select).order('created_at', { ascending: false })
+      if (isOperator) {
+        // Show only operator's active/listed batches in the dashboard so sold/removed ones disappear
+        q = q.eq('operator_id', userId).eq('is_listed', true).neq('freshness_status', 'RED')
+      } else {
+        q = q.eq('is_listed', true).neq('freshness_status', 'RED').limit(10)
+      }
+      return q
     }
-    const { data: active_batches } = await productsQuery
-
-    const { data: latestSensor } = await supabase
-      .from('sensor_logs')
-      .select('*')
-      .order('recorded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    // Operators also get their private climate row; buyers never read sensor data (no sensor_logs here).
+    const { data: active_batches } = isOperator ? await withClimate(buildProducts) : await buildProducts(PRODUCT_SELECT)
 
     const { count: unread_notifications } = await supabase
       .from('notifications')
@@ -115,9 +163,6 @@ export const api = {
 
     return {
       active_batches: active_batches || [],
-      live_temperature: latestSensor?.temperature_c ?? null,
-      live_humidity: latestSensor?.humidity_rh ?? null,
-      live_ethylene: latestSensor?.ethylene_ppm ?? null,
       unread_notifications: unread_notifications || 0,
       at_risk_count,
     }
@@ -126,42 +171,34 @@ export const api = {
   // ── Products ──────────────────────────────────────
   async batches() {
     const userId = await getSessionUserId()
-    const { data, error } = await supabase
+    const { data, error } = await withClimate((select) => supabase
       .from('products')
-      .select(PRODUCT_SELECT)
+      .select(select)
       .eq('operator_id', userId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false }))
     if (error) throw new Error(error.message)
     return data
   },
 
   async batch(id) {
-    const { data, error } = await supabase
+    const { data, error } = await withClimate((select) => supabase
       .from('products')
-      .select(PRODUCT_SELECT)
+      .select(select)
       .eq('id', id)
-      .single()
+      .single())
     if (error) throw new Error(error.message)
+    // Raw sensor data and prediction history belong to the batch's operator: nobody else is allowed to read them.
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session || session.user.id !== data.operator_id) {
+      return { ...data, predictions: [] }
+    }
     const { data: predictions } = await supabase
       .from('spoilage_predictions')
       .select('*')
       .eq('product_id', id)
       .order('created_at', { ascending: false })
       .limit(5)
-    const { data: latestSensor } = await supabase
-      .from('sensor_logs')
-      .select('*')
-      .eq('product_id', id)
-      .order('recorded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    return {
-      ...data,
-      predictions: predictions || [],
-      latest_temp: latestSensor?.temperature_c,
-      latest_humidity: latestSensor?.humidity_rh,
-      latest_ethylene: latestSensor?.ethylene_ppm,
-    }
+    return { ...data, predictions: predictions || [] }
   },
 
   async createBatch(body) {
@@ -347,6 +384,20 @@ export const api = {
     return data
   },
 
+  // Unread notifications, newest first (drives the badge, the banner and the phone alerts)
+  async unreadNotifications() {
+    const userId = await getSessionUserId()
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('id, notification_type, title, message, product_id, is_read, created_at')
+      .eq('user_id', userId)
+      .eq('is_read', false)
+      .order('id', { ascending: false })
+      .limit(99)
+    if (error) throw new Error(error.message)
+    return data || []
+  },
+
   async markAllRead() {
     const userId = await getSessionUserId()
     await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId).eq('is_read', false)
@@ -358,7 +409,7 @@ export const api = {
 
   subscribeNotifications(userId, callback) {
     const channel = supabase
-      .channel(`notif-${userId}`)
+      .channel(`notif-${userId}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -371,7 +422,7 @@ export const api = {
 
   subscribeMarketplace(callback) {
     const channel = supabase
-      .channel('marketplace-listings')
+      .channel(`marketplace-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'marketplace_listings' }, (payload) => callback(payload))
       .subscribe()
     return () => supabase.removeChannel(channel)
@@ -385,6 +436,81 @@ export const api = {
   },
 
   // ── Chat ──────────────────────────────────────────
+  // The buyer's existing chat for a listing, or null. Never creates one, so just looking at a
+  // listing does not fill the other person's inbox with empty chats.
+  async findChat(listingId) {
+    const userId = await getSessionUserId()
+    const { data, error } = await supabase
+      .from('chat_threads')
+      .select('*')
+      .eq('listing_id', listingId)
+      .eq('buyer_id', userId)
+      .maybeSingle()
+    if (error) throw new Error(error.message || error)
+    return data
+  },
+
+  // ── Ratings (buyers rate the stall operator; table: supabase/004_operator_ratings.sql) ──
+  async operatorRating(operatorId) {
+    const { data, error } = await supabase.from('ratings').select('stars').eq('operator_id', operatorId)
+    if (error || !data?.length) return null            // no table yet, or nobody has rated
+    const sum = data.reduce((a, r) => a + r.stars, 0)
+    return { average: Math.round((sum / data.length) * 10) / 10, count: data.length }
+  },
+
+  async myRatingForThread(threadId) {
+    const { data } = await supabase.from('ratings').select('stars').eq('thread_id', threadId).maybeSingle()
+    return data?.stars ?? null
+  },
+
+  async rateOperator(threadId, stars, comment = '') {
+    const userId = await getSessionUserId()
+    const { data: thread, error: tErr } = await supabase.from('chat_threads').select('operator_id, buyer_id').eq('id', threadId).single()
+    if (tErr) throw new Error(tErr.message)
+    if (thread.buyer_id !== userId) throw new Error('Only the buyer can rate this deal.')
+    const { error } = await supabase.from('ratings').insert({
+      thread_id: threadId, operator_id: thread.operator_id, buyer_id: userId, stars, comment: comment.trim() || null,
+    })
+    if (error) throw new Error(error.message.includes('duplicate') ? 'You already rated this deal.' : error.message)
+    return true
+  },
+
+  // ── Stall operator requests (an administrator decides) ──
+  async myRoleRequest() {
+    const userId = await getSessionUserId()
+    const { data } = await supabase
+      .from('role_requests')
+      .select('id, requested_stall_number, status, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    return data?.[0] || null
+  },
+
+  async requestOperatorRole(stall, note) {
+    const { error } = await supabase.rpc('request_operator_role', { stall, note: note || null })
+    if (error) throw new Error(error.message)
+  },
+
+  // Real numbers for the profile screen (no placeholders)
+  async profileStats(role) {
+    const userId = await getSessionUserId()
+    const count = async (q) => { const { count: c } = await q; return c ?? 0 }
+    if (role === 'STALL_OPERATOR') {
+      const [batches, sold, rating] = await Promise.all([
+        count(supabase.from('products').select('*', { count: 'exact', head: true }).eq('operator_id', userId)),
+        count(supabase.from('marketplace_listings').select('*', { count: 'exact', head: true }).eq('operator_id', userId).eq('listing_status', 'SOLD')),
+        api.operatorRating(userId),
+      ])
+      return { batches, sold, rating }
+    }
+    const [orders, completed] = await Promise.all([
+      count(supabase.from('chat_threads').select('*', { count: 'exact', head: true }).eq('buyer_id', userId)),
+      count(supabase.from('chat_threads').select('*', { count: 'exact', head: true }).eq('buyer_id', userId).eq('transaction_completed', true)),
+    ])
+    return { orders, completed }
+  },
+
   async chatThreads(archived = false) {
     const userId = await getSessionUserId()
     const { data, error } = await supabase
@@ -489,14 +615,8 @@ export const api = {
     if (error) throw new Error(error.message)
     await supabase.from('chat_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
 
-    const { data: thread } = await supabase.from('chat_threads').select('operator_id, buyer_id').eq('id', threadId).single()
-    const recipientId = thread.operator_id === userId ? thread.buyer_id : thread.operator_id
-    await supabase.from('notifications').insert({
-      user_id: recipientId,
-      notification_type: 'NEW_MESSAGE',
-      title: 'New Message',
-      message: message_text.slice(0, 120),
-    })
+    // The other person is notified by a database trigger (supabase/005_notification_triggers.sql):
+    // row-level security does not let a user write notifications for someone else.
     return data
   },
 
@@ -590,8 +710,9 @@ export const api = {
     const { data: prod, error: pErr } = await supabase.from('products').select('operator_id').eq('id', productId).single()
     if (pErr) throw new Error(pErr.message || pErr)
     if (prod.operator_id !== userId) throw new Error('Not authorized')
-    const { error: delErr } = await supabase.from('products').delete().eq('id', productId)
+    const { data: gone, error: delErr } = await supabase.from('products').delete().eq('id', productId).select('id')
     if (delErr) throw new Error(delErr.message || delErr)
+    if (!gone || gone.length === 0) throw new Error('The batch could not be deleted (no permission or it was already removed).')
     return true
   },
 }

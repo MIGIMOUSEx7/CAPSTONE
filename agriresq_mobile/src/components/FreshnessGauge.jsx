@@ -1,4 +1,5 @@
-import { statusLabel, statusClass } from '../utils/helpers'
+import { Link } from 'react-router-dom'
+import { statusLabel, statusClass, formatDays } from '../utils/helpers'
 import './FreshnessGauge.css'
 
 export default function FreshnessGauge({ percent = 88, status = 'GREEN', daysLeft }) {
@@ -28,7 +29,10 @@ export default function FreshnessGauge({ percent = 88, status = 'GREEN', daysLef
       <div className="gauge-info">
         <h3>Freshness Level: {statusLabel(status)}</h3>
         {daysLeft != null && (
-          <p className="gauge-days">~{Number(daysLeft).toFixed(1)} days to spoil</p>
+          <p className="gauge-days">{formatDays(daysLeft) === 'Rotten' ? 'Rotten' : `${formatDays(daysLeft)} to spoil (estimate)`}</p>
+        )}
+        {daysLeft != null && (
+          <Link to="/basis" className="gauge-basis-link">How is this calculated?</Link>
         )}
       </div>
     </div>

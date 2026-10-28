@@ -60,6 +60,19 @@
   margin-bottom: 6px;
 }
 
+.card-storage {
+  font-size: 11px;
+  line-height: 15px;
+  height: 15px;
+  margin: 0 0 6px;
+  color: var(--primary);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-storage.is-empty { color: var(--gray-600); font-weight: 400; }
+
 .batch-footer {
   display: flex;
   justify-content: space-between;

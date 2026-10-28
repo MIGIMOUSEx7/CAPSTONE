@@ -62,3 +62,27 @@ class ChatThreadAdmin(admin.ModelAdmin):
 @admin.register(ChatMessage)
 class ChatMessageAdmin(admin.ModelAdmin):
     list_display = ['thread', 'sender', 'sent_at', 'is_read']
+
+
+from .models import Device, PairingCode, DeviceScan, DeviceReading
+
+
+@admin.register(Device)
+class DeviceAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'mac', 'operator_id', 'ip', 'last_seen', 'crop_type', 'product_id']
+    readonly_fields = ['device_token']
+
+
+@admin.register(PairingCode)
+class PairingCodeAdmin(admin.ModelAdmin):
+    list_display = ['code', 'operator_id', 'expires_at', 'device']
+
+
+@admin.register(DeviceScan)
+class DeviceScanAdmin(admin.ModelAdmin):
+    list_display = ['id', 'device', 'source', 'crop_type', 'state', 'ml_confidence', 'created_at']
+
+
+@admin.register(DeviceReading)
+class DeviceReadingAdmin(admin.ModelAdmin):
+    list_display = ['id', 'device', 'temperature_c', 'humidity_rh', 'created_at']

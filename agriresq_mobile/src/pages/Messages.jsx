@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import BottomNav from '../components/BottomNav'
 import StatusBadge from '../components/StatusBadge'
-import { formatTime } from '../utils/helpers'
+import { CROP_LABELS, formatDateTime } from '../utils/helpers'
+import { useAuth } from '../context/AuthContext'
 import './Messages.css'
 
 export default function Messages() {
+  const { user } = useAuth()
   const [tab, setTab] = useState('inbox')
   const [threads, setThreads] = useState([])
   const [loading, setLoading] = useState(true)
@@ -32,13 +34,14 @@ export default function Messages() {
         ) : threads.length ? (
           threads.map((t) => {
             const product = t.marketplace_listings?.products
+            const other = user?.id === t.operator_id ? t.buyer : t.operator
             return (
               <Link key={t.id} to={`/chat/${t.id}`} className="thread-card card">
                 <div className="thread-avatar">💬</div>
                 <div className="thread-body">
                   <div className="thread-top">
-                    <strong>{product?.crop_type || `Thread #${t.id}`}</strong>
-                    <span>{formatTime(t.updated_at)}</span>
+                    <strong>{CROP_LABELS[product?.crop_type] || `Chat #${t.id}`}{other?.full_name ? ` · ${other.full_name}` : ''}</strong>
+                    <span>{formatDateTime(t.updated_at)}</span>
                   </div>
                   {product && (
                     <StatusBadge status={product.freshness_status} showPercent percent={product.freshness_percent} size="sm" />

@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
@@ -117,7 +118,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -132,12 +133,33 @@ if not DEBUG:
     X_FRAME_OPTIONS = 'DENY'
 
 # Supabase client config (for optional direct realtime from frontend)
-SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
-SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://yyrmuaocpnrlkeedwpzx.supabase.co').rstrip('/')
+# publishable key (already public in the apps); used to verify user sessions
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', 'sb_publishable_vSgs7UPknvfBsjXvrEtk0Q_Nh7m7I1-')
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    SUPABASE_SERVICE_ROLE_KEY = ''      # automated tests must never write to the real Supabase project
 
 # IoT alert thresholds
 IOT_TEMP_ALERT_THRESHOLD = float(os.environ.get('IOT_TEMP_ALERT_THRESHOLD', '30'))
+# Stall conditions assumed for time-based aging when a batch has no recent DHT22 reading (Bulua market)
+ASSUMED_STALL_TEMP_C = float(os.environ.get('ASSUMED_STALL_TEMP_C', '29'))
+ASSUMED_STALL_RH = float(os.environ.get('ASSUMED_STALL_RH', '80'))
+
+# Analysed pictures are kept while they are among a camera's newest SCAN_KEEP_PER_DEVICE or newer than
+# SCAN_KEEP_DAYS days (operator-corrected frames are always kept: they are retraining data).
+SCAN_KEEP_PER_DEVICE = int(os.environ.get('SCAN_KEEP_PER_DEVICE', '500'))
+SCAN_KEEP_DAYS = int(os.environ.get('SCAN_KEEP_DAYS', '30'))
+
+# Freshness CNN (ML/deploy: agriresq_freshness.onnx + model_config.json + predict.py)
+ML_MODEL_DIR = Path(os.environ.get('ML_MODEL_DIR', PROJECT_ROOT / 'ML' / 'deploy'))
+
+# Address the ESP32-CAM uses to reach this server. Empty = auto-detect the laptop's LAN IP.
+DEVICE_SERVER_URL = os.environ.get('DEVICE_SERVER_URL', '')
+DJANGO_PORT = os.environ.get('DJANGO_PORT', '8000')
+
+# JPEG uploads from the camera
+DATA_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024
 
 
 ALLOWED_HOSTS = ['*']

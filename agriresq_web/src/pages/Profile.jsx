@@ -1,70 +1,107 @@
-import React, { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { api } from "../api/supabaseApi";
+import { announceProfile, uploadAvatar } from "../api/avatarApi";
+
+const ROLE_LABEL = { ADMIN: "Administrator", STALL_OPERATOR: "Stall operator", RESCUE_BUYER: "Rescue buyer" };
+
+function readStoredUser() {
+  try { return JSON.parse(localStorage.getItem("agriresq_current_user") || "{}"); } catch { return {}; }
+}
 
 export default function Profile() {
   const fileInputRef = useRef(null);
 
-  const storedUser = JSON.parse(localStorage.getItem("agriresq_current_user") || "{}");
-
-  const [name, setName] = useState(storedUser.name || "Admin Terminal");
-  const [email, setEmail] = useState(storedUser.email || "");
-  const [location, setLocation] = useState(storedUser.location || "Bulua Westbound");
-  const [avatar, setAvatar] = useState(storedUser.avatar || null);
+  const [stored] = useState(readStoredUser);
+  const [loaded, setLoaded] = useState(false);
+  const [role, setRole] = useState(stored.role || "");
+  const [name, setName] = useState(stored.full_name || stored.name || "");
+  const [email, setEmail] = useState(stored.email || "");
+  const [location, setLocation] = useState(stored.market_location || "");
+  const [avatar, setAvatar] = useState(stored.avatar_url || null);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [avatarMsg, setAvatarMsg] = useState("");
+  const [avatarErr, setAvatarErr] = useState("");
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPass, setChangingPass] = useState(false);
 
   const [profileMsg, setProfileMsg] = useState("");
   const [profileErr, setProfileErr] = useState("");
   const [passMsg, setPassMsg] = useState("");
   const [passErr, setPassErr] = useState("");
 
-  const handleAvatarClick = () => fileInputRef.current.click();
+  // Everything comes from Supabase (profiles + auth); localStorage is only a first-paint fallback.
+  useEffect(() => {
+    let alive = true;
+    api.me()
+      .then((me) => {
+        if (!alive) return;
+        if (me) {
+          setName(me.full_name || "");
+          setEmail(me.email || "");
+          setLocation(me.market_location || "");
+          setAvatar(me.avatar_url || null);
+          setRole(me.role || "");
+        }
+      })
+      .catch((err) => { if (alive) setProfileErr(`Could not load your profile: ${err.message}`); })
+      .finally(() => { if (alive) setLoaded(true); });
+    return () => { alive = false; };
+  }, []);
 
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setAvatar(reader.result);
-    };
-    reader.readAsDataURL(file);
+    setAvatarMsg("");
+    setAvatarErr("");
+    setUploading(true);
+    try {
+      const result = await uploadAvatar(file);
+      setAvatar(result.url);
+      if (result.saved) setAvatarMsg("Profile picture updated.");
+      else setAvatarErr(result.warning);
+    } catch (err) {
+      setAvatarErr(err.message || "Could not update the picture.");
+    } finally {
+      setUploading(false);
+    }
   };
 
-  const handleProfileSave = (e) => {
+  const handleProfileSave = async (e) => {
     e.preventDefault();
     setProfileMsg("");
     setProfileErr("");
 
-    if (!name || !email) {
-      setProfileErr("Name and email cannot be empty.");
+    if (!name.trim()) {
+      setProfileErr("Name cannot be empty.");
       return;
     }
 
-    const updatedUser = { ...storedUser, name, email, location, avatar };
-    localStorage.setItem("agriresq_current_user", JSON.stringify(updatedUser));
-
-    // Also update in users list
-    const users = JSON.parse(localStorage.getItem("agriresq_users") || "[]");
-    const updatedUsers = users.map((u) =>
-      u.email === storedUser.email ? { ...u, name, email, location, avatar } : u
-    );
-    localStorage.setItem("agriresq_users", JSON.stringify(updatedUsers));
-
-    setProfileMsg("Profile updated successfully.");
+    setSaving(true);
+    try {
+      await api.updateProfile({ full_name: name.trim(), market_location: location.trim() });
+      announceProfile({ full_name: name.trim(), market_location: location.trim() });
+      setProfileMsg("Profile updated successfully.");
+    } catch (err) {
+      setProfileErr(err.message || "Could not save your profile.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handlePasswordSave = (e) => {
+  const handlePasswordSave = async (e) => {
     e.preventDefault();
     setPassMsg("");
     setPassErr("");
 
     if (!currentPassword || !newPassword || !confirmPassword) {
       setPassErr("Please fill in all password fields.");
-      return;
-    }
-    if (currentPassword !== storedUser.password) {
-      setPassErr("Current password is incorrect.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -76,19 +113,18 @@ export default function Profile() {
       return;
     }
 
-    const updatedUser = { ...storedUser, password: newPassword };
-    localStorage.setItem("agriresq_current_user", JSON.stringify(updatedUser));
-
-    const users = JSON.parse(localStorage.getItem("agriresq_users") || "[]");
-    const updatedUsers = users.map((u) =>
-      u.email === storedUser.email ? { ...u, password: newPassword } : u
-    );
-    localStorage.setItem("agriresq_users", JSON.stringify(updatedUsers));
-
-    setPassMsg("Password changed successfully.");
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    setChangingPass(true);
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      setPassMsg("Password changed successfully.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setPassErr(err.message || "Could not change the password.");
+    } finally {
+      setChangingPass(false);
+    }
   };
 
   const inputStyle = {
@@ -97,6 +133,8 @@ export default function Profile() {
     fontSize: "14px", outline: "none",
     boxSizing: "border-box", background: "#fff", color: "#1a1a1a"
   };
+
+  const readOnlyStyle = { ...inputStyle, background: "#f8fafc", color: "#64748b", cursor: "not-allowed" };
 
   const labelStyle = {
     fontSize: "12px", color: "#64748b",
@@ -117,17 +155,24 @@ export default function Profile() {
     fontSize: "13px", marginBottom: "1rem"
   };
 
+  const warnBox = {
+    background: "#fef3c7", color: "#92400e",
+    borderRadius: "8px", padding: "10px 14px",
+    fontSize: "13px", marginBottom: "1rem"
+  };
+
   const sectionCard = {
     background: "#fff", borderRadius: "12px",
     border: "1px solid #e2e8f0", padding: "1.5rem 2rem",
     marginBottom: "1.5rem"
   };
 
-  const saveBtn = {
+  const saveBtn = (busy) => ({
     padding: "10px 24px", background: "#1D9E75",
     color: "#fff", border: "none", borderRadius: "8px",
-    fontSize: "14px", fontWeight: 600, cursor: "pointer"
-  };
+    fontSize: "14px", fontWeight: 600, cursor: busy ? "wait" : "pointer",
+    opacity: busy ? 0.7 : 1
+  });
 
   return (
     <div style={{ maxWidth: "640px", margin: "0 auto", padding: "2rem 1rem" }}>
@@ -147,38 +192,43 @@ export default function Profile() {
 
         {/* Avatar */}
         <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", marginBottom: "1.5rem" }}>
-          <div
+          <button
+            type="button"
             onClick={handleAvatarClick}
+            disabled={uploading}
+            aria-label="Change profile picture"
             style={{
-              width: "80px", height: "80px", borderRadius: "50%",
+              width: "80px", height: "80px", borderRadius: "50%", padding: 0,
               background: avatar ? "transparent" : "#1D9E75",
               display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", overflow: "hidden",
+              cursor: uploading ? "wait" : "pointer", overflow: "hidden",
               border: "3px solid #e2e8f0", flexShrink: 0
             }}
           >
             {avatar ? (
-              <img src={avatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={avatar} alt="Your profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : (
               <span style={{ fontSize: "28px", fontWeight: 700, color: "#fff" }}>
-                {name.charAt(0).toUpperCase()}
+                {(name || email || "?").charAt(0).toUpperCase()}
               </span>
             )}
-          </div>
+          </button>
           <div>
             <button
+              type="button"
               onClick={handleAvatarClick}
+              disabled={uploading}
               style={{
                 padding: "8px 16px", background: "transparent",
                 border: "1px solid #e2e8f0", borderRadius: "8px",
-                fontSize: "13px", cursor: "pointer", color: "#64748b",
+                fontSize: "13px", cursor: uploading ? "wait" : "pointer", color: "#64748b",
                 marginBottom: "6px", display: "block"
               }}
             >
-              📷 Change photo
+              {uploading ? "Uploading…" : "📷 Change photo"}
             </button>
             <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>
-              JPG or PNG. Max 2MB.
+              JPG or PNG. It is resized automatically.
             </p>
           </div>
           <input
@@ -189,48 +239,50 @@ export default function Profile() {
             onChange={handleAvatarChange}
           />
         </div>
+        {avatarMsg && <div role="status" style={successBox}>{avatarMsg}</div>}
+        {avatarErr && <div role="alert" style={warnBox}>{avatarErr}</div>}
 
         <form onSubmit={handleProfileSave}>
-          {profileMsg && <div style={successBox}>{profileMsg}</div>}
-          {profileErr && <div style={errorBox}>{profileErr}</div>}
+          {profileMsg && <div role="status" style={successBox}>{profileMsg}</div>}
+          {profileErr && <div role="alert" style={errorBox}>{profileErr}</div>}
 
           <div style={fieldWrap}>
-            <label style={labelStyle}>Full name</label>
+            <label htmlFor="profile-name" style={labelStyle}>Full name</label>
             <input
+              id="profile-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={!loaded}
               style={inputStyle}
             />
           </div>
 
           <div style={fieldWrap}>
-            <label style={labelStyle}>Email address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={inputStyle}
-            />
+            <label htmlFor="profile-email" style={labelStyle}>Email address (sign-in email, cannot be changed here)</label>
+            <input id="profile-email" type="email" value={email} readOnly style={readOnlyStyle} />
           </div>
 
           <div style={fieldWrap}>
-            <label style={labelStyle}>Location / Terminal</label>
+            <label htmlFor="profile-role" style={labelStyle}>Account type (fixed)</label>
+            <input id="profile-role" type="text" value={ROLE_LABEL[role] || role || "—"} readOnly style={readOnlyStyle} />
+          </div>
+
+          <div style={fieldWrap}>
+            <label htmlFor="profile-location" style={labelStyle}>Location / Terminal</label>
             <input
+              id="profile-location"
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
+              placeholder="Bulua Westbound"
+              disabled={!loaded}
               style={inputStyle}
             />
           </div>
 
-          <button
-            type="submit"
-            style={saveBtn}
-            onMouseOver={(e) => e.target.style.background = "#0F6E56"}
-            onMouseOut={(e) => e.target.style.background = "#1D9E75"}
-          >
-            Save changes
+          <button type="submit" disabled={saving || !loaded} style={saveBtn(saving)}>
+            {saving ? "Saving…" : "Save changes"}
           </button>
         </form>
       </div>
@@ -242,13 +294,15 @@ export default function Profile() {
         </p>
 
         <form onSubmit={handlePasswordSave}>
-          {passMsg && <div style={successBox}>{passMsg}</div>}
-          {passErr && <div style={errorBox}>{passErr}</div>}
+          {passMsg && <div role="status" style={successBox}>{passMsg}</div>}
+          {passErr && <div role="alert" style={errorBox}>{passErr}</div>}
 
           <div style={fieldWrap}>
-            <label style={labelStyle}>Current password</label>
+            <label htmlFor="pw-current" style={labelStyle}>Current password</label>
             <input
+              id="pw-current"
               type="password"
+              autoComplete="current-password"
               placeholder="••••••••"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -257,9 +311,11 @@ export default function Profile() {
           </div>
 
           <div style={fieldWrap}>
-            <label style={labelStyle}>New password</label>
+            <label htmlFor="pw-new" style={labelStyle}>New password</label>
             <input
+              id="pw-new"
               type="password"
+              autoComplete="new-password"
               placeholder="••••••••"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -268,9 +324,11 @@ export default function Profile() {
           </div>
 
           <div style={fieldWrap}>
-            <label style={labelStyle}>Confirm new password</label>
+            <label htmlFor="pw-confirm" style={labelStyle}>Confirm new password</label>
             <input
+              id="pw-confirm"
               type="password"
+              autoComplete="new-password"
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -278,13 +336,8 @@ export default function Profile() {
             />
           </div>
 
-          <button
-            type="submit"
-            style={saveBtn}
-            onMouseOver={(e) => e.target.style.background = "#0F6E56"}
-            onMouseOut={(e) => e.target.style.background = "#1D9E75"}
-          >
-            Update password
+          <button type="submit" disabled={changingPass} style={saveBtn(changingPass)}>
+            {changingPass ? "Updating…" : "Update password"}
           </button>
         </form>
       </div>

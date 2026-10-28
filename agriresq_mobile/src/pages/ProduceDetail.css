@@ -1,7 +1,7 @@
 .produce-detail {
   min-height: 100vh;
   background: var(--gray-50);
-  padding-bottom: 200px;
+  padding-bottom: 24px;
 }
 
 .produce-hero {
@@ -14,7 +14,26 @@
   padding: 16px;
   margin-top: -24px;
   position: relative;
+  background: var(--gray-50);
+  border-radius: 24px 24px 0 0;
 }
+.produce-price-lg small { font-size: 14px; font-weight: 500; color: var(--gray-600); }
+.produce-total { margin: -8px 0 16px; font-size: 13px; color: var(--gray-600); }
+.info-row strong { text-align: right; margin-left: 12px; }
+.send-message-btn {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--primary);
+  color: var(--white);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.send-message-btn:disabled { opacity: 0.6; cursor: wait; }
 
 .produce-body h1 {
   font-size: 26px;
@@ -101,8 +120,11 @@
 
 .strike-original {
   font-size: 14px;
-  color: var(--gray-300);
+  color: var(--gray-600);
   text-decoration: line-through;
   font-weight: 400;
   margin-left: 8px;
 }
+
+.seller-rating { color: #b7791f; font-weight: 700; margin: 0 0 6px; }
+.seller-rating small { color: var(--gray-600); font-weight: 400; }

@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from '../api/supabaseApi';
 import AuthSidePanel from "./Authsidepanel";
 
-export default function Login({ onLogin, onRegister }) {
+export default function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -62,7 +62,7 @@ export default function Login({ onLogin, onRegister }) {
             Welcome back
           </p>
           <p style={{ fontSize: "14px", color: "#64748b", margin: "0 0 2rem" }}>
-            Sign in to your AgriResQ account
+            Administrator sign in
           </p>
 
           <form onSubmit={handleLogin}>
@@ -86,9 +86,11 @@ export default function Login({ onLogin, onRegister }) {
               </label>
               <input
                 type="email"
+                autoComplete="email"
                 placeholder="you@agriresq.ph"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
                 style={{
                   width: "100%", padding: "10px 12px",
                   border: "1px solid #e2e8f0", borderRadius: "8px",
@@ -107,9 +109,11 @@ export default function Login({ onLogin, onRegister }) {
               </label>
               <input
                 type="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
                 style={{
                   width: "100%", padding: "10px 12px",
                   border: "1px solid #e2e8f0", borderRadius: "8px",
@@ -143,20 +147,9 @@ export default function Login({ onLogin, onRegister }) {
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
 
-            <div style={{ textAlign: "center" }}>
-              <span style={{ fontSize: "13px", color: "#64748b" }}>Don't have an account? </span>
-              <button
-                type="button"
-                onClick={onRegister}
-                style={{
-                  background: "none", border: "none",
-                  color: "#155E52", fontSize: "13px",
-                  fontWeight: 600, cursor: "pointer", padding: 0
-                }}
-              >
-                Register
-              </button>
-            </div>
+            <p style={{ textAlign: "center", fontSize: "13px", color: "#64748b", margin: 0, lineHeight: 1.4 }}>
+              Administrator access only. Stall operators and buyers use the AgriResQ mobile app.
+            </p>
 
           </form>
         </div>

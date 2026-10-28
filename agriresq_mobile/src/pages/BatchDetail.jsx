@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
-import { CROP_LABELS, CROP_IMAGES, formatCurrency } from '../utils/helpers'
-import IoTReadings from '../components/IoTReadings'
+import { CROP_LABELS, formatCurrency, formatDays } from '../utils/helpers'
 import FreshnessGauge from '../components/FreshnessGauge'
+import FreshnessCheck from '../components/FreshnessCheck'
+import ProductImage from '../components/ProductImage'
 import StatusBadge from '../components/StatusBadge'
+import useBatchAnalysis from '../hooks/useBatchAnalysis'
+import usePolling from '../hooks/usePolling'
 import './BatchDetail.css'
 
 const TIMELINE = ['Harvested', 'Vision Scan', 'At Stall', 'Listed']
@@ -14,20 +17,26 @@ export default function BatchDetail() {
   const [batch, setBatch] = useState(null)
   const [prediction, setPrediction] = useState(null)
   const [detection, setDetection] = useState(null)
+  const [error, setError] = useState('')
+  const analysis = useBatchAnalysis(id)
 
-  useEffect(() => {
-    const load = () => {
-      api.batch(id).then(setBatch).catch(console.error)
-      api.predict(id).then(setPrediction).catch(console.error)
-      api.batchDetectionPercent(id).then(setDetection).catch(() => setDetection(null))
-    }
-    load()
-    const t = setInterval(load, 30000)
-    return () => clearInterval(t)
-  }, [id])
+  // polls only while the tab is visible and stops on unmount
+  usePolling(() => {
+    api.batch(id).then((b) => { setBatch(b); setError('') }).catch((err) => { console.error(err); setError(err.message || 'Could not load this batch.') })
+    api.predict(id).then(setPrediction).catch(console.error)
+    api.batchDetectionPercent(id).then(setDetection).catch(() => setDetection(null))
+  }, 30000)
 
-  if (!batch) return <div className="page page-no-nav"><p>Loading...</p></div>
-
+  if (!batch) {
+    return (
+      <div className="app-shell">
+        <div className="page page-no-nav">
+          <Link to="/home" className="back-link">← Back to Dashboard</Link>
+          {error ? <p className="error-text">{error}</p> : <p className="muted">Loading...</p>}
+        </div>
+      </div>
+    )
+  }
   const crop = batch.crop_type
   const step = batch.is_listed ? 3 : 2
 
@@ -35,7 +44,7 @@ export default function BatchDetail() {
     <div className="app-shell">
       <div className="page batch-detail page-no-nav" style={{ paddingBottom: 24 }}>
         <Link to="/home" className="back-link">← Back to Dashboard</Link>
-        <img src={batch.image_url || CROP_IMAGES[crop]} alt="" className="detail-hero" />
+        <ProductImage src={batch.image_url} crop={crop} className="detail-hero" />
         <div className="detail-title-row">
           <h1>{CROP_LABELS[crop]} #{batch.id}</h1>
           <StatusBadge status={batch.freshness_status} showPercent percent={batch.freshness_percent} />
@@ -63,10 +72,14 @@ export default function BatchDetail() {
           </div>
         </section>
 
-        <section className="detail-section">
-          <h3 className="section-title">Live IoT Reading</h3>
-          <IoTReadings temp={batch.latest_temp} humidity={batch.latest_humidity} ethylene={batch.latest_ethylene} />
-        </section>
+        <FreshnessCheck
+          mode="operator"
+          analysis={analysis.analysis}
+          loading={analysis.loading}
+          error={analysis.error}
+          fallback={{ days: batch.predicted_shelf_life, status: batch.freshness_status, percent: batch.freshness_percent }}
+        />
+        <p className="batch-privacy-note">Buyers only see the calculated days to spoil and the camera confidence, never your sensor readings.</p>
 
         <section className="detail-section card">
           <h3>Status Timeline</h3>
@@ -86,7 +99,7 @@ export default function BatchDetail() {
             {batch.predictions.map((p) => (
               <div key={p.id} className="prediction-row">
                 <StatusBadge status={p.predicted_status} size="sm" />
-                <span>{Number(p.days_to_spoil).toFixed(1)} days · {p.source}</span>
+                <span>{formatDays(p.days_to_spoil)} · {p.source}</span>
                 <span className="pred-time">{new Date(p.created_at).toLocaleString('en-PH')}</span>
               </div>
             ))}
@@ -96,7 +109,7 @@ export default function BatchDetail() {
         {prediction && (
           <section className="detail-section card">
             <h3>Latest Prediction</h3>
-            <p>Days to spoil: <strong>{Number(prediction.days_to_spoil).toFixed(1)}</strong></p>
+            <p>Days to spoil: <strong>{formatDays(prediction.days_to_spoil)}</strong></p>
             <p>Freshness: <strong>{prediction.freshness_percent}%</strong></p>
           </section>
         )}

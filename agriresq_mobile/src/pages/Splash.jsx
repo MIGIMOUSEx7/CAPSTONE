@@ -9,8 +9,10 @@ export default function Splash() {
     <div className="splash splash--bulua page-no-nav">
       <div className="splash-content">
         <div className="logo-wrap">
-          <div className="logo-icon">🌿</div>
-          <h1>AgriResQ</h1>
+          <div className="logo-brand">
+            <img className="logo-icon" src="/agriresq-logo.svg" alt="" />
+            <h1>AgriResQ</h1>
+          </div>
           <p>IoT-Assisted Rescue Distribution for Surplus Vegetables</p>
         </div>
         <div className="splash-actions">

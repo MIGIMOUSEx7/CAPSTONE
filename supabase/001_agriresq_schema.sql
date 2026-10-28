@@ -129,17 +129,36 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 -- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  requested_role TEXT;
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name, role)
+  requested_role := COALESCE(NEW.raw_user_meta_data->>'role', 'RESCUE_BUYER');
+  IF requested_role NOT IN ('STALL_OPERATOR', 'RESCUE_BUYER') THEN
+    RAISE EXCEPTION 'Unsupported account role: %', requested_role;
+  END IF;
+  IF requested_role = 'STALL_OPERATOR'
+    AND NULLIF(NEW.raw_user_meta_data->>'stall_number', '') IS NULL THEN
+    RAISE EXCEPTION 'A stall number is required for stall operators';
+  END IF;
+
+  INSERT INTO public.profiles (
+    id, email, full_name, phone_number, role, stall_number, buyer_type, market_location
+  )
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'RESCUE_BUYER')
+    NULLIF(NEW.raw_user_meta_data->>'phone_number', ''),
+    requested_role,
+    CASE WHEN requested_role = 'STALL_OPERATOR'
+      THEN NULLIF(NEW.raw_user_meta_data->>'stall_number', '') END,
+    CASE WHEN requested_role = 'RESCUE_BUYER'
+      THEN COALESCE(NULLIF(NEW.raw_user_meta_data->>'buyer_type', ''), 'RETAILER') END,
+    COALESCE(NULLIF(NEW.raw_user_meta_data->>'market_location', ''), 'Bulua WBIT Terminal')
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created

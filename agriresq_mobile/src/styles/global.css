@@ -188,3 +188,10 @@ button, input, textarea, select {
   color: var(--primary);
   margin-bottom: 12px;
 }
+
+/* .btn-outline is white-on-green for the splash screen; on the light app pages it must be dark */
+.app-shell .btn-outline {
+  background: transparent;
+  color: var(--primary);
+  border: 1.5px solid var(--gray-300);
+}

@@ -1,127 +1,124 @@
-import joblib
-import cv2
-import numpy as np
-import os
-import base64
+"""
+Freshness analysis with the AgriResQ CNN (EfficientNet-B0, ONNX; see ML/README.md).
 
-# We load this globally so it only loads once when the server starts
-model_path = os.path.join(os.path.dirname(__file__), 'svm_vegetable_model.pkl')
-try:
-    svm_model = joblib.load(model_path)
-except FileNotFoundError:
-    raise FileNotFoundError(f"SVM Model not found at {model_path}. Did you run train_svm.py?")
+The network is open-set: besides the 9 crop-states it has a `none` output for anything that is
+not eggplant, cucumber or carrot (empty scene, hands, other produce, backgrounds). A frame is only
+reported as a detection when the thresholds in ML/deploy/model_config.json are met.
+
+The response keeps the fields the web/mobile apps already read (freshness_status,
+freshness_percent, days_to_spoil, ml_confidence, crop_type, processed_image_base64) and adds
+detected / state / detected_crop / crop_mismatch / message / probs / none_prob / low_confidence.
+"""
+import base64
+import importlib.util
+import io
+import threading
+from decimal import Decimal
+
+from django.conf import settings
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+from .spoilage_engine import CROP_CONFIG
+
+STATE_TO_STATUS = {'fresh': 'GREEN', 'at-risk': 'AMBER', 'rotten': 'RED', 'none': 'UNKNOWN'}
+STATUS_COLOR = {'GREEN': (42, 157, 92), 'AMBER': (230, 150, 20), 'RED': (210, 50, 50), 'UNKNOWN': (130, 130, 130)}
+STATUS_LABEL = {'GREEN': 'FRESH', 'AMBER': 'AT-RISK', 'RED': 'ROTTEN', 'UNKNOWN': 'NO VEGETABLE'}
+# Confidence of the freshness verdict (3-way softmax inside the crop, 1/3 = chance) below which the
+# UI is told to ask for a re-scan and nothing is written to the batch.
+LOW_CONFIDENCE = 0.55
+# Paper 3.10.1: when the camera sees spoilage, the ETA drops to a critical 1-2 day window.
+AT_RISK_ETA_DAYS = (1.0, 2.0)
+
+_model = None
+_lock = threading.Lock()
+
+
+def get_model():
+    """Load ML/deploy/predict.py's FreshnessModel once per process."""
+    global _model
+    if _model is None:
+        with _lock:
+            if _model is None:
+                model_dir = settings.ML_MODEL_DIR
+                spec = importlib.util.spec_from_file_location('agriresq_predict', model_dir / 'predict.py')
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                _model = module.FreshnessModel(str(model_dir))
+    return _model
+
+
+def _annotate(image, status, text):
+    image = image.copy()
+    image.thumbnail((640, 640))
+    draw = ImageDraw.Draw(image)
+    color = STATUS_COLOR[status]
+    w, h = image.size
+    draw.rectangle([0, 0, w - 1, h - 1], outline=color, width=max(3, w // 160))
+    try:
+        font = ImageFont.load_default(size=max(14, w // 28))
+    except TypeError:                     # Pillow < 10.1
+        font = ImageFont.load_default()
+    box = draw.textbbox((0, 0), text, font=font)
+    pad = 6
+    draw.rectangle([0, 0, box[2] + 2 * pad, box[3] + 2 * pad], fill=color)
+    draw.text((pad, pad), text, fill=(255, 255, 255), font=font)
+    return image
+
+
+def eta_days(state, confidence, crop, freshness_pct):
+    """Days to spoil for a camera verdict (ML override of the rule-based countdown, paper 3.10.1)."""
+    if state == 'rotten':
+        return Decimal('0')
+    if state == 'at-risk':
+        lo, hi = AT_RISK_ETA_DAYS
+        return Decimal(str(lo if confidence >= 0.85 else hi))
+    baseline = CROP_CONFIG[crop]['baseline_shelf_life']
+    return (baseline * Decimal(str(freshness_pct)) / 100).quantize(Decimal('0.1'))
+
+
+def analyze_image(image_bytes: bytes, crop_type: str | None = 'EGGPLANT') -> tuple[dict, Image.Image]:
+    """Run the CNN. Returns (result dict, annotated PIL image)."""
+    image = ImageOps.exif_transpose(Image.open(io.BytesIO(image_bytes))).convert('RGB')
+    crop_type = {'CARROTS': 'CARROT'}.get((crop_type or '').upper(), (crop_type or '').upper())
+    hint = crop_type.lower() if crop_type in CROP_CONFIG else None
+    pred = get_model().predict(image, crop=hint)
+
+    registered = crop_type if crop_type in CROP_CONFIG else 'EGGPLANT'
+    probs = pred['probs']
+    base = {
+        'detected': pred['detected'],
+        'state': pred['state'],
+        'freshness_status': STATE_TO_STATUS[pred['state']],
+        'detected_crop': pred['detected_crop'].upper() if pred['detected_crop'] else None,
+        'crop_mismatch': pred['crop_mismatch'],
+        'message': pred['message'],
+        'ml_confidence': round(pred['confidence'], 4),
+        'none_prob': pred['none_prob'],
+        'probs': probs,
+        'analysis_method': 'CNN_EFFICIENTNET_B0_OPENSET',
+    }
+    if not pred['detected']:
+        result = {**base, 'crop_type': registered, 'freshness_percent': None, 'days_to_spoil': None,
+                  'low_confidence': False}
+        return result, _annotate(image, 'UNKNOWN', 'NO VEGETABLE')
+
+    crop = pred['crop'].upper()
+    pct = pred['freshness_pct']
+    days = eta_days(pred['state'], pred['confidence'], crop, pct)
+    result = {**base, 'crop_type': crop, 'freshness_percent': int(round(pct)), 'days_to_spoil': float(days),
+              'low_confidence': pred['confidence'] < LOW_CONFIDENCE}
+    status = base['freshness_status']
+    label = f"{STATUS_LABEL[status]}  {crop.title()}  {pred['confidence'] * 100:.0f}%"
+    if pred['crop_mismatch']:
+        label = f"LOOKS LIKE {crop.title()}"
+    return result, _annotate(image, 'AMBER' if pred['crop_mismatch'] else status, label)
+
 
 def analyze_crop_image(image_bytes: bytes, crop_type: str = 'EGGPLANT') -> dict:
-    """
-    Performs SVM inference and uses OpenCV to draw a bounding box.
-    """
-    # 1. Convert bytes to NumPy array for OpenCV
-    nparr = np.frombuffer(image_bytes, np.uint8)
-    
-    # Read in color so we can draw a colored box (Green/Red)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR) 
-    
-    # Create a grayscale copy for the SVM and contour detection
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    blurred = cv2.GaussianBlur(img_gray, (7, 7), 0)
-    edges = cv2.Canny(blurred, 30, 150)
-    
-    # Find contours (the outlines of the vegetables)
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    valid_object_found = False
-    x, y, w, h = 0, 0, 0, 0
-    
-    if contours:
-        # Find the largest outline
-        largest_contour = max(contours, key=cv2.contourArea)
-        x, y, w, h = cv2.boundingRect(largest_contour)
-        
-        # Rule: The object must be a decent size, BUT it cannot be the whole screen.
-        # This prevents a blank wall from being boxed as one giant object.
-        img_h, img_w = img.shape[:2]
-        if (w > 60 and h > 60) and (w < img_w * 0.90 and h < img_h * 0.90):
-            valid_object_found = True
-
-    if valid_object_found:
-        # --- CRITICAL FIX: ANALYZE THE CROP, NOT THE BACKGROUND ---
-        # We cut out the exact box where the object is, and only feed THAT to the AI.
-        roi_gray = img_gray[y:y+h, x:x+w]
-        
-        # Resize the cropped object to 64x64 for the SVM
-        img_resized = cv2.resize(roi_gray, (64, 64))
-        features = img_resized.flatten().reshape(1, -1)
-        
-        # Get the predicted label and confidence
-        prediction = svm_model.predict(features)[0] 
-        probabilities = svm_model.predict_proba(features)[0]
-        real_confidence = float(np.max(probabilities))
-        
-        if 'eggplant' in prediction.lower():
-            detected_crop = 'EGGPLANT'
-        elif 'cucumber' in prediction.lower():
-            detected_crop = 'CUCUMBER'
-        elif 'carrot' in prediction.lower():
-            detected_crop = 'CARROTS'
-        else:
-            detected_crop = 'UNKNOWN'
-    else:
-        # If no distinct edges are found (blank wall), skip the AI completely!
-        prediction = "none"
-        real_confidence = 0.0
-        detected_crop = 'UNKNOWN'
-    
-    # --- STRICTER CONFIDENCE THRESHOLD ---
-    CONFIDENCE_THRESHOLD = 0.90 # Raised to 90% strictness!
-    
-    if not valid_object_found or real_confidence < CONFIDENCE_THRESHOLD:
-        status = 'UNKNOWN'
-        freshness_score = 0
-        days = 0
-        label = "Waiting for object..."
-        box_color = (200, 200, 200) 
-        is_fresh = False
-        detected_crop = 'UNKNOWN' 
-        
-        # Draw a neutral box in the center just so you know the camera is working
-        if not valid_object_found:
-            img_h, img_w = img.shape[:2]
-            cv2.putText(img, label, (img_w//2 - 80, img_h//2), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200,200,200), 2)
-    else:
-        is_fresh = 'fresh' in prediction.lower()
-        status = 'GREEN' if is_fresh else 'RED'
-
-        baseline_days = {'EGGPLANT': 14, 'CUCUMBER': 12, 'CARROTS': 21}
-        max_days = baseline_days.get(detected_crop, 14) 
-
-        if is_fresh:
-            freshness_score = int(real_confidence * 100)
-            days = max(3, int(max_days * real_confidence)) 
-        else:
-            freshness_score = int((1.0 - real_confidence) * 100)
-            days = 1 if real_confidence < 0.8 else 0
-            
-        label = f"{status} {detected_crop} ({int(real_confidence*100)}%)"
-        box_color = (0, 255, 0) if is_fresh else (0, 0, 255) 
-        
-        # Draw the tightly cropped bounding box around the actual vegetable
-        cv2.rectangle(img, (x, y), (x + w, y + h), box_color, 2)
-        cv2.putText(img, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, box_color, 2)
-
-    # --- ENCODE FOR FRONTEND ---
-    # Convert the image (with the newly drawn box) to Base64 
-    # so the React frontend can easily display it
-    _, buffer = cv2.imencode('.jpg', img)
-    image_base64 = base64.b64encode(buffer).decode('utf-8')
-    
-    return {
-        'freshness_status': status,
-        'freshness_percent': freshness_score,
-        'days_to_spoil': days,
-        'ml_confidence': real_confidence, 
-        'analysis_method': 'SVM_WITH_BOUNDING_BOX',
-        'crop_type': detected_crop, # <-- Use the AI's auto-detected crop!
-        'model_prediction': prediction,
-        'processed_image_base64': f"data:image/jpeg;base64,{image_base64}" 
-    }
+    """Backwards-compatible entry point used by /api/analyze-freshness/."""
+    result, annotated = analyze_image(image_bytes, crop_type)
+    buf = io.BytesIO()
+    annotated.save(buf, 'JPEG', quality=85)
+    result['model_prediction'] = f"{(result['detected_crop'] or 'none').lower()}_{result['state']}"
+    result['processed_image_base64'] = 'data:image/jpeg;base64,' + base64.b64encode(buf.getvalue()).decode()
+    return result

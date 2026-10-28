@@ -16,9 +16,19 @@
   width: 100%;
 }
 
+.logo-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .logo-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: contain;
   animation: leaf-bob 3.5s ease-in-out 750ms infinite;
 }
 
@@ -26,7 +36,8 @@
   font-size: 36px;
   font-weight: 700;
   letter-spacing: -0.5px;
-  margin-bottom: 12px;
+  margin: 0;
+  line-height: 1;
 }
 
 .splash p {

@@ -27,7 +27,23 @@ export function AuthProvider({ children }) {
       setUser((currentUser) => currentUser?.id === session.user.id ? currentUser : session.user)
     });
 
+    // An administrator may approve a stall operator application while the app is open:
+    // check again whenever the app comes back to the foreground.
+    const refreshRole = async () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const me = await api.me();
+        if (me) setUser((cur) => (cur && cur.role !== me.role ? me : cur));
+      } catch {
+        /* offline: keep what we have */
+      }
+    };
+    document.addEventListener('visibilitychange', refreshRole);
+    window.addEventListener('focus', refreshRole);
+
     return () => {
+      document.removeEventListener('visibilitychange', refreshRole);
+      window.removeEventListener('focus', refreshRole);
       if (authListener?.subscription?.unsubscribe) {
         authListener.subscription.unsubscribe();
       } else if (authListener?.unsubscribe) {
@@ -50,16 +66,7 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (form) => {
-    const authUser = await api.register(form);
-    let profileUser = null;
-    try {
-      profileUser = await api.me();
-    } catch (err) {
-      profileUser = null;
-    }
-    const user = profileUser || authUser;
-    setUser(user);
-    return user;
+    return api.register(form);
   };
 
   const logout = async () => {

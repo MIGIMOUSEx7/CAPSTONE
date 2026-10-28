@@ -15,6 +15,7 @@
 .status-badge-ui.status-green { background: var(--fresh); }
 .status-badge-ui.status-amber { background: var(--at-risk); }
 .status-badge-ui.status-red { background: var(--spoiled); }
+.status-badge-ui.status-grey { background: var(--gray-600); }
 
 .status-dot-inline {
   width: 8px;

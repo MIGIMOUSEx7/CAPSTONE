@@ -6,7 +6,7 @@ export default function StatusBadge({ status, showPercent, percent, size = 'md' 
     <span className={`status-badge-ui ${statusClass(status)} size-${size}`}>
       <span className="status-dot-inline" />
       {statusLabel(status)}
-      {showPercent && percent != null && ` · ${percent}%`}
+      {showPercent && status !== 'UNKNOWN' && percent != null && ` · ${percent}%`}
     </span>
   )
 }

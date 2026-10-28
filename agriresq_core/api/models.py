@@ -70,7 +70,7 @@ class CropBatch(models.Model):
     STATUS_CHOICES = [
         ('GREEN', 'Fresh'),
         ('AMBER', 'At-Risk'),
-        ('RED', 'Spoiled'),
+        ('RED', 'Rotten'),
     ]
 
     wholesaler = models.ForeignKey(WholesalerProfile, on_delete=models.CASCADE, related_name='batches')
@@ -198,3 +198,165 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f"Msg from {self.sender.username} at {self.sent_at}"
+
+
+# ── Smart-home style ESP32-CAM devices (see docs/IOT_DEVICE_API.md) ──────────
+# Owners are Supabase users (profiles.id UUID), not Django users: the web and
+# mobile apps authenticate with Supabase, and Django is the IoT/ML hub.
+
+CROP_TYPES = [('EGGPLANT', 'Eggplant'), ('CUCUMBER', 'Cucumber'), ('CARROT', 'Carrot')]
+
+
+class Device(models.Model):
+    COMMANDS = ['scan_now', 'scan_auto', 'reboot', 'forget_wifi', 'unpair']
+    DEFAULT_CAPTURE_TIMES = ['07:00', '12:00', '16:00']      # Table 9: morning baseline, peak heat, end of day
+
+    KINDS = [('CAMERA', 'Camera'), ('SENSOR', 'Sensor node')]
+    kind = models.CharField(max_length=10, choices=KINDS, default='CAMERA')    # SENSOR = plain ESP32 + DHT22, no camera
+
+    operator_id = models.CharField(max_length=64, db_index=True)
+    name = models.CharField(max_length=100, default='Stall Camera')
+    stall_location = models.CharField(max_length=100, blank=True)
+    device_token = models.CharField(max_length=64, unique=True)
+    mac = models.CharField(max_length=17, unique=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    fw_version = models.CharField(max_length=32, blank=True)
+    wifi_ssid = models.CharField(max_length=64, blank=True)
+    rssi = models.IntegerField(null=True, blank=True)
+    uptime_s = models.IntegerField(default=0)
+    last_seen = models.DateTimeField(null=True, blank=True)
+
+    # settings the operator controls from the app; sent to the device in every heartbeat
+    crop_type = models.CharField(max_length=20, choices=CROP_TYPES, default='EGGPLANT')
+    product_id = models.BigIntegerField(null=True, blank=True)   # Supabase products.id
+    auto_scan = models.BooleanField(default=True)                # monitoring on/off
+    scan_mode = models.CharField(max_length=10, default='schedule')   # 'schedule' (capture windows) | 'interval'
+    capture_times = models.JSONField(default=list)               # ["07:00","12:00","16:00"], local time
+    last_window = models.CharField(max_length=20, blank=True)    # "YYYY-MM-DD HH:MM" of the last scheduled capture
+    last_emergency_at = models.DateTimeField(null=True, blank=True)
+    # live rule-engine countdown (VPD / CHU, paper 3.10): days left when tracking started or the camera last
+    # overrode it, and the life consumed since (kept at 6 decimals; the product row only stores 2)
+    eta_start = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    life_lost = models.DecimalField(max_digits=10, decimal_places=6, default=0)
+    last_reading_at = models.DateTimeField(null=True, blank=True)
+    scan_interval_s = models.PositiveIntegerField(default=300)
+    dht_pin = models.IntegerField(default=-1)                    # -1 = no DHT22 attached
+    flash_on_scan = models.BooleanField(default=False)
+
+    pending_command = models.CharField(max_length=20, blank=True)
+    last_alert_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    ONLINE_WINDOW_S = 30
+
+    @staticmethod
+    def generate_token():
+        return secrets.token_urlsafe(32)
+
+    def times(self):
+        return self.capture_times or self.DEFAULT_CAPTURE_TIMES
+
+    @property
+    def online(self):
+        return bool(self.last_seen) and (timezone.now() - self.last_seen).total_seconds() < self.ONLINE_WINDOW_S
+
+    def config(self):
+        return {
+            'crop_type': self.crop_type,
+            # in 'schedule' mode the server sends scan commands at the capture times itself
+            'auto_scan': self.auto_scan and self.scan_mode == 'interval',
+            'scan_interval_s': self.scan_interval_s,
+            'dht_pin': self.dht_pin,
+            'flash_on_scan': self.flash_on_scan,
+            'heartbeat_s': 5,
+        }
+
+    def __str__(self):
+        return f"{self.name} ({self.mac})"
+
+
+class PairingCode(models.Model):
+    code = models.CharField(max_length=8, unique=True)
+    operator_id = models.CharField(max_length=64)
+    name = models.CharField(max_length=100, blank=True)
+    stall_location = models.CharField(max_length=100, blank=True)
+    crop_type = models.CharField(max_length=20, choices=CROP_TYPES, default='EGGPLANT')
+    expires_at = models.DateTimeField()
+    device = models.ForeignKey(Device, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'   # no 0/O/1/I
+
+    @classmethod
+    def new_code(cls):
+        while True:
+            code = ''.join(secrets.choice(cls.ALPHABET) for _ in range(6))
+            if not cls.objects.filter(code=code).exists():
+                return code
+
+    @property
+    def status(self):
+        if self.device_id:
+            return 'CLAIMED'
+        return 'EXPIRED' if timezone.now() > self.expires_at else 'WAITING'
+
+
+class DeviceScan(models.Model):
+    SOURCES = [('AUTO', 'Auto'), ('MANUAL', 'Manual'), ('UPLOAD', 'Upload')]
+
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='scans', null=True, blank=True)
+    source = models.CharField(max_length=10, choices=SOURCES, default='AUTO')
+    crop_type = models.CharField(max_length=20, choices=CROP_TYPES)
+    detected = models.BooleanField(default=True)                # False = no eggplant/cucumber/carrot in view
+    detected_crop = models.CharField(max_length=20, null=True, blank=True)
+    crop_mismatch = models.BooleanField(default=False)
+    message = models.CharField(max_length=200, blank=True)
+    none_prob = models.FloatField(default=0.0)
+    state = models.CharField(max_length=10)                     # fresh / at-risk / rotten / none
+    freshness_status = models.CharField(max_length=10)          # GREEN / AMBER / RED / UNKNOWN
+    freshness_percent = models.IntegerField(null=True, blank=True)
+    days_to_spoil = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    ml_confidence = models.FloatField()
+    probs = models.JSONField(null=True, blank=True)
+    low_confidence = models.BooleanField(default=False)
+    image = models.CharField(max_length=255, blank=True)        # annotated JPEG under MEDIA_ROOT
+    raw_image = models.CharField(max_length=255, blank=True)    # untouched camera frame (for retraining)
+    feedback_label = models.CharField(max_length=40, null=True, blank=True)   # operator's correction
+    product_id = models.BigIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class DeviceReading(models.Model):
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='readings')
+    temperature_c = models.DecimalField(max_digits=5, decimal_places=2)
+    humidity_rh = models.DecimalField(max_digits=5, decimal_places=2)
+    vpd_kpa = models.DecimalField(max_digits=6, decimal_places=4, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class BatchClock(models.Model):
+    """When a Supabase batch (product) last had its countdown written. The time-based aging job
+    ages a batch by the hours since then, so a batch with no camera or sensor still gets older."""
+    product_id = models.BigIntegerField(unique=True)
+    last_tick = models.DateTimeField()
+    chu_accumulated = models.DecimalField(max_digits=12, decimal_places=3, default=0)   # degree-hours above the stress temperature since the batch was first seen
+
+
+class DeviceMonitor(models.Model):
+    """A second stall operator who can watch a camera (live view, scans, readings) but not change it.
+    Every stall camera should have its owner plus at least one monitor."""
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='monitors')
+    user_id = models.CharField(max_length=64, db_index=True)       # Supabase profiles.id
+    full_name = models.CharField(max_length=120, blank=True)
+    email = models.CharField(max_length=190, blank=True)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('device', 'user_id')]
+        ordering = ['added_at']

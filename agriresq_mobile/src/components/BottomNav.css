@@ -21,7 +21,7 @@
   flex-direction: column;
   align-items: center;
   gap: 5px;
-  padding: 8px 16px;
+  padding: 8px 10px;
   color: #8EA39A;
   font-size: 11px;
   font-weight: 500;
@@ -35,4 +35,21 @@
 .nav-icon {
   width: 21px;
   height: 21px;
+}
+
+.nav-icon-wrap { position: relative; display: inline-flex; }
+.nav-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--spoiled);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
 }

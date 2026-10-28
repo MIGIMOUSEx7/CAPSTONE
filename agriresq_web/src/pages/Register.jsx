@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { api } from '../api/supabaseApi';
 import AuthSidePanel from "./Authsidepanel";
 
-export default function Register({ onRegister, onBack }) {
+export default function Register({ onBack }) {
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -41,23 +41,9 @@ export default function Register({ onRegister, onBack }) {
         full_name: form.name,
         email: form.email,
         password: form.password,
-        role: "WHOLESALER",
-        stall_number: "Stall 1",
       });
 
-      const profile = await api.me();
-      localStorage.setItem("agriresq_current_user", JSON.stringify({
-        id: profile?.id,
-        email: profile?.email || form.email,
-        full_name: profile?.full_name || form.name,
-        role: profile?.role || 'WHOLESALER',
-        stall_number: profile?.stall_number || 'Stall 1',
-      }));
-
       setSuccess(true);
-      setTimeout(() => {
-        onRegister();
-      }, 1500);
     } catch (err) {
       console.error("Registration error:", err);
       setError(err.message || "Registration failed. Please check your details.");
@@ -83,9 +69,19 @@ export default function Register({ onRegister, onBack }) {
 
           {success ? (
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "48px", marginBottom: "1rem" }}>✅</div>
-              <p style={{ fontSize: "20px", fontWeight: 700, color: "#155E52" }}>Account created!</p>
-              <p style={{ fontSize: "14px", color: "#64748b" }}>Redirecting you to the dashboard...</p>
+              <div style={{ fontSize: "48px", marginBottom: "1rem" }}>✉️</div>
+              <p style={{ fontSize: "20px", fontWeight: 700, color: "#155E52" }}>Verify your email</p>
+              <p style={{ fontSize: "14px", color: "#64748b" }}>
+                We sent a confirmation link to <strong>{form.email.trim().toLowerCase()}</strong>.
+                Open it to verify your address before signing in.
+              </p>
+              <button
+                type="button"
+                onClick={onBack}
+                style={{ marginTop: "1rem", color: "#155E52", background: "none", border: "none", fontWeight: 600, cursor: "pointer" }}
+              >
+                Back to sign in
+              </button>
             </div>
           ) : (
             <>
@@ -118,6 +114,7 @@ export default function Register({ onRegister, onBack }) {
                     placeholder="Juan dela Cruz"
                     value={form.name}
                     onChange={handleChange}
+                    required
                     style={{
                       width: "100%", padding: "10px 12px",
                       border: "1px solid #e2e8f0", borderRadius: "8px",
@@ -134,9 +131,11 @@ export default function Register({ onRegister, onBack }) {
                   <input
                     type="email"
                     name="email"
+                    autoComplete="email"
                     placeholder="you@agriresq.ph"
                     value={form.email}
                     onChange={handleChange}
+                    required
                     style={{
                       width: "100%", padding: "10px 12px",
                       border: "1px solid #e2e8f0", borderRadius: "8px",
@@ -145,6 +144,10 @@ export default function Register({ onRegister, onBack }) {
                     }}
                   />
                 </div>
+
+                <p style={{ fontSize: "13px", color: "#475569", background: "#ecfdf5", borderRadius: "8px", padding: "10px 14px", margin: "0 0 1rem", lineHeight: 1.4 }}>
+                  New accounts start as rescue buyers. To sell as a stall operator, apply from the mobile app. An administrator reviews the request.
+                </p>
 
                 <div style={{ marginBottom: "1rem" }}>
                   <label style={{ fontSize: "12px", color: "#64748b", display: "block", marginBottom: "6px" }}>
@@ -156,6 +159,8 @@ export default function Register({ onRegister, onBack }) {
                     placeholder="••••••••"
                     value={form.password}
                     onChange={handleChange}
+                    required
+                    minLength={8}
                     style={{
                       width: "100%", padding: "10px 12px",
                       border: "1px solid #e2e8f0", borderRadius: "8px",
@@ -175,6 +180,7 @@ export default function Register({ onRegister, onBack }) {
                     placeholder="••••••••"
                     value={form.confirm}
                     onChange={handleChange}
+                    required
                     style={{
                       width: "100%", padding: "10px 12px",
                       border: "1px solid #e2e8f0", borderRadius: "8px",

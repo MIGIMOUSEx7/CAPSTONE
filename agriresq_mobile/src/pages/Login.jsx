@@ -36,12 +36,12 @@ export default function Login() {
       <form className="auth-form card" onSubmit={handleSubmit}>
         <div className="input-group">
           <label>Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@email.com" />
+          <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@email.com" />
         </div>
         <div className="input-group">
           <label>Password</label>
           <div className="password-row">
-            <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
+            <input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
             <button type="button" className="btn-link small" onClick={() => setShowPassword((s) => !s)}>{showPassword ? 'Hide' : 'Show'}</button>
           </div>
         </div>

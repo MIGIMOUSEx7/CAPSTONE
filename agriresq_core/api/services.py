@@ -64,7 +64,7 @@ def process_sensor_reading(iot_node, batch_id, temp_c, rh, ethylene_ppm=None):
 
 def _handle_status_change(batch, old_status, new_status):
     wholesaler_user = batch.wholesaler.user
-    status_labels = {'GREEN': 'Fresh', 'AMBER': 'At-Risk', 'RED': 'Spoiled'}
+    status_labels = {'GREEN': 'Fresh', 'AMBER': 'At-Risk', 'RED': 'Rotten'}
 
     PushNotification.objects.create(
         user=wholesaler_user,

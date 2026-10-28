@@ -1,129 +1,118 @@
-import React, { useState, useRef } from 'react';
-import { Zap, RefreshCw, AlertCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, ScanLine, Loader2, Plus, Settings2 } from 'lucide-react'
+import { deviceApi, isSensor } from '../api/deviceApi'
+import usePolling from '../hooks/usePolling'
+import LiveCameraView from '../components/LiveCameraView'
+import ScanResultCard from '../components/ScanResultCard'
+import ErrorNotice from '../components/ErrorNotice'
+import { SkeletonCard } from '../components/Skeleton'
+import '../styles/devices.css'
+import './AIVision.css'
 
+/** Live AI scanner: pick one of the operator's ESP32-CAMs, watch it and run a freshness scan. */
 export default function AIVision() {
-  const [result, setResult] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [streamError, setStreamError] = useState(false);
-  
-  // Reference to the live video image so we can screenshot it
-  const imgRef = useRef(null);
+  const [devices, setDevices] = useState(null) // cameras only: sensor nodes have no camera
+  const [sensorCount, setSensorCount] = useState(0)
+  const [selectedId, setSelectedId] = useState('')
+  const [result, setResult] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState(null)
+  const [loadError, setLoadError] = useState('')
+  const followUp = useRef(null)
 
-  // Using the Vite proxy path!
-  const ESP32_STREAM_URL = `/api/camera/stream`;
+  useEffect(() => () => clearTimeout(followUp.current), [])
 
-  const captureAndAnalyze = async () => {
-    setIsLoading(true);
-    
+  const loadDevices = async () => {
     try {
-      // 1. Grab the current frame from the live video feed
-      const imgElement = imgRef.current;
-      if (!imgElement) throw new Error("Stream not visible");
-
-      // 2. Create an invisible canvas to "screenshot" the image
-      const canvas = document.createElement('canvas');
-      canvas.width = imgElement.naturalWidth || 640;
-      canvas.height = imgElement.naturalHeight || 480;
-      const ctx = canvas.getContext('2d');
-      
-      // Draw the current video frame onto the canvas
-      ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
-
-      // 3. Convert the canvas into a file (Blob)
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
-
-      // 4. Send the screenshot to your Django AI Backend
-      const formData = new FormData();
-      formData.append('image', blob, 'frame.jpg');
-      formData.append('crop_type', 'EGGPLANT'); // You can make this dynamic later!
-
-      const djangoResponse = await fetch('/api/analyze-freshness/', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!djangoResponse.ok) throw new Error("Django AI server failed to respond");
-      
-      const data = await djangoResponse.json();
-      setResult(data);
-      
-    } catch (error) {
-      console.error("AI Analysis failed:", error);
-      alert("Failed to analyze: " + error.message + ". Is Django running?");
-    } finally {
-      setIsLoading(false);
+      const all = await deviceApi.devices()
+      const list = all.filter((d) => !isSensor(d))
+      setSensorCount(all.length - list.length)
+      setDevices(list)
+      setLoadError('')
+      setSelectedId((cur) => cur || String((list.find((d) => d.online) || list[0])?.id ?? ''))
+    } catch (err) {
+      setLoadError(err.message)
+      setDevices((cur) => cur ?? [])
     }
-  };
+  }
+
+  usePolling(loadDevices, 10000)
+
+  const device = devices?.find((d) => String(d.id) === String(selectedId))
+
+  // show the camera's latest scan when switching cameras
+  useEffect(() => { setResult(device?.latest_scan || null) }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scan = async () => {
+    if (!device) return
+    setBusy(true)
+    setMessage(null)
+    try {
+      const res = await deviceApi.scanNow(device.id)
+      if (res.queued) {
+        setMessage({ type: 'info', text: 'Scan requested. Fetching the result…' })
+        clearTimeout(followUp.current)
+        followUp.current = setTimeout(async () => {
+          try {
+            const [latest] = await deviceApi.scans(device.id, 1)
+            if (latest) { setResult(latest); setMessage(null) }
+          } catch { /* keep message */ }
+        }, 6000)
+      } else {
+        setResult(res.scan)
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
-    <div className="max-w-md mx-auto p-4 space-y-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-slate-800">AI Vision Scanner</h1>
-        <p className="text-sm text-slate-500">Live Analysis - Bulua WBIT</p>
-      </div>
+    <div className="app-shell">
+      <div className="page page-no-nav ai-vision">
+        <Link to="/home" className="dev-back"><ArrowLeft size={16} /> Home</Link>
+        <h1 className="dev-title">AI Freshness Scanner</h1>
+        <p className="dev-subtitle">Detects eggplant, cucumber and carrot · fresh / at-risk / rotten</p>
 
-      <div className="relative bg-black rounded-2xl overflow-hidden shadow-xl aspect-video flex items-center justify-center">
-        {!streamError ? (
-          <img 
-            ref={imgRef}
-            src={ESP32_STREAM_URL}
-            alt="ESP32-CAM Live Feed"
-            className="w-full h-full object-cover"
-            onError={() => setStreamError(true)}
-            // crossOrigin="anonymous" is no longer needed because the Vite Proxy makes it "Same Origin"!
-          />
-        ) : (
-          <div className="text-white text-center p-4">
-            <AlertCircle size={40} className="mx-auto mb-2 text-rose-500" />
-            <p>Stream Offline.</p>
-            <button onClick={() => window.location.reload()} className="mt-4 text-xs underline">Retry Connection</button>
+        {message && <div className={`notice ${message.type}`}>{message.text}</div>}
+        <ErrorNotice message={loadError} onRetry={loadDevices} hint="Check that the AgriResQ server is running and your phone is on the same Wi-Fi." />
+
+        {devices === null && !loadError && <SkeletonCard lines={4} />}
+
+        {devices?.length === 0 && !loadError && (
+          <div className="card ai-empty">
+            <p>You haven't connected a camera yet.</p>
+            {sensorCount > 0 && <p className="muted">Sensor nodes have no camera. See their temperature and humidity under <Link to="/devices">Devices</Link>.</p>}
+            <Link to="/devices/add" className="btn btn-green"><Plus size={18} /> Add a camera</Link>
           </div>
         )}
+
+        {devices?.length > 0 && (
+          <>
+            <div className="input-group ai-picker">
+              <label>Camera</label>
+              <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+                {devices.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name || `Camera #${d.id}`}{d.online ? '' : ' (offline)'}</option>
+                ))}
+              </select>
+            </div>
+
+            {device && (
+              <>
+                <LiveCameraView deviceId={device.id} online={device.online} />
+                <button className="btn btn-green ai-scan" onClick={scan} disabled={busy || !device.online}>
+                  {busy ? <><Loader2 className="spin" size={18} /> Analysing…</> : <><ScanLine size={18} /> Snap &amp; analyse</>}
+                </button>
+                <Link to={`/devices/${device.id}`} className="ai-settings-link"><Settings2 size={14} /> Camera settings</Link>
+                <ScanResultCard scan={result} title="Analysis result" onScanUpdated={setResult} />
+              </>
+            )}
+          </>
+        )}
       </div>
-
-      <button 
-        onClick={captureAndAnalyze} 
-        disabled={isLoading || streamError}
-        className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold text-white transition-all shadow-md
-          ${isLoading ? 'bg-slate-400' : 'bg-[#2A6B48] hover:bg-[#1f5035]'}`}
-      >
-        {isLoading ? <RefreshCw className="animate-spin" size={20} /> : <Zap size={20} />}
-        {isLoading ? 'Processing AI...' : 'Snap & Analyze'}
-      </button>
-
-      {result && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mt-6 animate-fadeIn">
-          <h2 className="text-lg font-bold text-slate-800 mb-4">Analysis Result</h2>
-          
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Status</p>
-              {/* NEW: Handle the UNKNOWN status gracefully */}
-              <p className={`font-bold text-lg 
-                ${result.freshness_status === 'GREEN' ? 'text-[#2A6B48]' : 
-                  result.freshness_status === 'UNKNOWN' ? 'text-slate-500' : 'text-rose-500'}`}>
-                {result.freshness_status === 'GREEN' ? 'Fresh / Safe' : 
-                 result.freshness_status === 'UNKNOWN' ? 'Subject Not Recognized' : 'At-Risk / Rotten'}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Confidence</p>
-              <p className="font-bold text-lg text-slate-800">
-                {(result.ml_confidence * 100).toFixed(1)}%
-              </p>
-            </div>
-          </div>
-
-          {result.processed_image_base64 && (
-            <div className="mt-4 rounded-xl overflow-hidden border-2 border-slate-100">
-              <p className="bg-slate-50 text-xs font-bold text-slate-500 p-2 text-center border-b border-slate-100">
-                SVM Bounding Box Output
-              </p>
-              <img src={result.processed_image_base64} alt="AI Result" className="w-full" />
-            </div>
-          )}
-        </div>
-      )}
     </div>
-  );
+  )
 }

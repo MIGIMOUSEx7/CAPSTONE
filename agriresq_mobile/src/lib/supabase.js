@@ -17,4 +17,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+// Opened in a phone browser from the laptop (http://<laptop-IP>:5174)? Then the backend is on that same
+// machine, whatever IP the router gave it today. The APK (served from "localhost") uses the build-time URL.
+const pageHost = typeof window !== 'undefined' ? window.location.hostname : ''
+const fromLaptop = pageHost && !['localhost', '127.0.0.1', ''].includes(pageHost)
+export const BACKEND_URL = fromLaptop
+  ? `${window.location.protocol}//${pageHost}:8000`
+  : import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'

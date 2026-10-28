@@ -24,25 +24,23 @@ export default function Marketplace() {
   const [producer, setProducer] = useState('')
   const [sort, setSort] = useState('newest')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     setLoading(true)
     const params = tab !== 'all' ? { crop_type: tab } : {}
     api.marketplace(params)
-      .then((data) => {
-        console.debug('Marketplace load success', { params, count: (data || []).length })
-        setListings(data)
-      })
+      .then((data) => { setListings(data); setLoadError('') })
       .catch((err) => {
         console.error('Marketplace load failed', err)
         setListings([])
+        setLoadError(err.message || 'Could not load the listings')
       })
       .finally(() => setLoading(false))
   }, [tab])
 
   useEffect(() => {
-    const unsub = api.subscribeMarketplace((payload) => {
-      console.debug('marketplace change payload', payload)
+    const unsub = api.subscribeMarketplace(() => {
       const params = tab !== 'all' ? { crop_type: tab } : {}
       api.marketplace(params).then((data) => setListings(data)).catch((err) => { console.error('marketplace refresh failed', err); setListings([]) })
     })
@@ -97,9 +95,16 @@ export default function Marketplace() {
         </div>
 
         {loading ? (
-          <p className="muted">Loading from Supabase...</p>
+          <p className="muted">Loading listings…</p>
         ) : sorted.length ? (
-          sorted.map((l) => <ProduceCard key={l.id} listing={l} />)
+          <div className="listing-grid">
+            {sorted.map((l) => <ProduceCard key={l.id} listing={l} />)}
+          </div>
+        ) : loadError ? (
+          <div className="empty-state card">
+            <p>Could not load the listings.</p>
+            <p className="muted">{loadError}. Check your connection and pull to refresh.</p>
+          </div>
         ) : (
           <div className="empty-state card">
             <p>No listings yet.</p>

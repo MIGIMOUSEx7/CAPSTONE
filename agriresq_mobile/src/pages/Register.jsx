@@ -1,19 +1,18 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import './Auth.css'
 
 export default function Register() {
   const { register } = useAuth()
-  const navigate = useNavigate()
   const [form, setForm] = useState({
     full_name: '', email: '', phone_number: '', password: '',
-    role: 'STALL_OPERATOR', stall_number: '', buyer_type: 'RETAILER', location: '',
+    buyer_type: 'RETAILER',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState('')
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
@@ -22,8 +21,8 @@ export default function Register() {
     setError('')
     setLoading(true)
     try {
-      await register({ ...form })
-      navigate('/home')
+      await register({ ...form, role: 'RESCUE_BUYER' })
+      setRegisteredEmail(form.email.trim().toLowerCase())
     } catch (err) {
       setError(err.message)
     } finally {
@@ -38,6 +37,16 @@ export default function Register() {
         <h2>Create Account</h2>
         <p>Join the AgriResQ marketplace</p>
       </div>
+      {registeredEmail ? (
+        <div className="auth-form card">
+          <h3>Verify your email</h3>
+          <p>
+            We sent a confirmation link to <strong>{registeredEmail}</strong>.
+            Open that email and verify your address before signing in.
+          </p>
+          <Link className="btn btn-green" to="/login">Continue to Sign In</Link>
+        </div>
+      ) : (
       <form className="auth-form card" onSubmit={handleSubmit}>
         <div className="input-group">
           <label>Full Name</label>
@@ -45,7 +54,7 @@ export default function Register() {
         </div>
         <div className="input-group">
           <label>Email</label>
-          <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} required />
+          <input type="email" autoComplete="email" value={form.email} onChange={(e) => set('email', e.target.value)} required />
         </div>
         <div className="input-group">
           <label>Phone Number</label>
@@ -58,26 +67,9 @@ export default function Register() {
             <button type="button" className="btn-link small" onClick={() => setShowPassword((s) => !s)}>{showPassword ? 'Hide' : 'Show'}</button>
           </div>
         </div>
-        <div className="input-group">
-          <label>Role</label>
-          <div className="role-options">
-            <label className={`role-chip ${form.role === 'WHOLESALER' || form.role === 'STALL_OPERATOR' ? 'active' : ''}`}>
-              <input type="radio" name="role" value="STALL_OPERATOR" checked={form.role === 'WHOLESALER' || form.role === 'STALL_OPERATOR'} onChange={() => set('role', 'STALL_OPERATOR')} />
-              Stall Operator
-            </label>
-            <label className={`role-chip ${form.role === 'RESCUE_BUYER' ? 'active' : ''}`}>
-              <input type="radio" name="role" value="RESCUE_BUYER" checked={form.role === 'RESCUE_BUYER'} onChange={() => set('role', 'RESCUE_BUYER')} />
-              Rescue Buyer
-            </label>
-          </div>
-        </div>
-        {form.role === 'STALL_OPERATOR' && (
-          <div className="input-group">
-            <label>Stall Number</label>
-            <input value={form.stall_number} onChange={(e) => set('stall_number', e.target.value)} placeholder="e.g. Stall 1" required />
-          </div>
-        )}
-        {/* Location and profile photo removed per request */}
+        <p className="auth-note">
+          New accounts start as <strong>Rescue Buyers</strong>. To sell as a stall operator, apply from your Profile after signing in. An administrator reviews the request.
+        </p>
         {error && <p className="error-text">{error}</p>}
         <button type="submit" className="btn btn-green" disabled={loading}>
           {loading ? 'Creating...' : 'Create Account'}
@@ -86,7 +78,7 @@ export default function Register() {
           Already have an account? <Link to="/login">Sign In</Link>
         </p>
       </form>
+      )}
     </div>
   )
 }
-

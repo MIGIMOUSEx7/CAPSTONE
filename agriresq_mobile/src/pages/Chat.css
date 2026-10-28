@@ -114,3 +114,5 @@
 .chat-input button:disabled {
   opacity: 0.5;
 }
+
+.bubble-time { display: block; margin-top: 4px; font-size: 10px; opacity: 0.65; }

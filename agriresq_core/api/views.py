@@ -430,6 +430,8 @@ class IotAnalyzeProductView(APIView):
         from decimal import Decimal
 
         result = analyze_crop_image(image.read(), crop_type)
+        if not result['detected'] or result['crop_mismatch']:
+            return Response(result, status=200)     # nothing to save: no eggplant/cucumber/carrot in view
         status = result['freshness_status']
         discount = {'GREEN': 0, 'AMBER': 30, 'RED': 100}[status]
         current_price = float(base_price) * (1 - discount / 100)

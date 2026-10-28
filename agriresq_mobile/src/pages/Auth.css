@@ -143,3 +143,4 @@
     overflow-y: auto; /* Register is taller, so it scrolls inside the "phone" */
   }
 }
+.auth-note { margin: 0; font-size: 13px; line-height: 1.4; color: #4b5563; background: #ecfdf5; border-radius: 10px; padding: 10px 12px; }
