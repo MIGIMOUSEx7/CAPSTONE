@@ -5,9 +5,16 @@ import { supabase } from '../lib/supabase'
 // IP the router gave it today, so follow the page's host. On the laptop itself (localhost) use the configured URL.
 const pageHost = typeof window !== 'undefined' ? window.location.hostname : ''
 const fromLaptop = pageHost && !['localhost', '127.0.0.1', ''].includes(pageHost)
-export const BACKEND_URL = (fromLaptop
-  ? `${window.location.protocol}//${pageHost}:8000`
-  : import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+const envUrl = import.meta.env.VITE_BACKEND_URL
+const envIsRemote = !!envUrl && !/\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(envUrl)
+
+export const BACKEND_URL = (
+  envIsRemote
+    ? envUrl
+    : fromLaptop
+      ? `${window.location.protocol}//${pageHost}:8000`
+      : envUrl || 'http://127.0.0.1:8000'
+).replace(/\/$/, '')
 // ESP32-CAM setup hotspot address
 export const SETUP_URL = 'http://192.168.4.1'
 
