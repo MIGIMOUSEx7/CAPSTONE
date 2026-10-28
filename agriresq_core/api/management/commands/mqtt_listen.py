@@ -8,10 +8,10 @@ from django.contrib.auth.models import User
 
 # --- EMQX CLOUD CONFIGURATION ---
 # Same credentials as before. Environment variables (if set) override them.
-EMQX_HOST = os.environ.get("EMQX_HOST", "ce41d666.ala.asia-southeast1.emqxsl.com")
+EMQX_HOST = os.environ.get("EMQX_HOST", "vfd7178d.ala.asia-southeast1.emqxsl.com")
 EMQX_PORT = int(os.environ.get("EMQX_PORT", "8883"))  # secure TLS port
-EMQX_USER = os.environ.get("EMQX_USER", "agriresq_node")
-EMQX_PASS = os.environ.get("EMQX_PASS", "123qweasd")
+EMQX_USER = os.environ.get("EMQX_USER", "admin")
+EMQX_PASS = os.environ.get("EMQX_PASS", "admincapstone")
 TOPIC = os.environ.get("MQTT_TOPIC", "agriresq/telemetry/dht22")
 
 
