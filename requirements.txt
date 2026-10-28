@@ -11,4 +11,4 @@ onnxruntime>=1.18
 gunicorn>=22.0
 whitenoise>=6.6
 # only for the optional EMQX listener: python manage.py mqtt_listen
-# paho-mqtt>=1.6
+paho-mqtt>=1.6
