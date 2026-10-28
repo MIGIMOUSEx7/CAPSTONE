@@ -11,3 +11,5 @@ agriresq_core/media/
 
 /iot/sensor_node/include/secrets.h
 /iot/sensor_node/.pio
+
+.pio/
