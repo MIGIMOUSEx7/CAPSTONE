@@ -45,7 +45,7 @@ async function request(path, { method = 'GET', body, timeoutMs = 15000 } = {}) {
     }, timeoutMs)
   } catch (err) {
     if (err.name === 'AbortError') throw new Error('The AgriResQ server took too long to respond.')
-    throw new Error(`Cannot reach the AgriResQ server at ${BACKEND_URL}. Is your phone on the same Wi-Fi?`)
+    throw new Error(`Cannot connect to the AgriResQ server at ${BACKEND_URL}. Check your internet connection and the server's app access settings.`)
   }
   if (!res.ok) throw new Error(await readError(res))
   if (res.status === 204) return null

@@ -49,13 +49,21 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# Set CORS_ALLOWED_ORIGINS on Render to your frontend URL, e.g. https://agriresq-web.onrender.com
 CORS_ALLOWED_ORIGINS = [
-    o.strip() for o in os.environ.get(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:5173,http://127.0.0.1:5173',
-    ).split(',') if o.strip()
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
+    'http://localhost',
+    'https://localhost',
+    'capacitor://localhost',
+    'ionic://localhost',
 ]
+CORS_ALLOWED_ORIGINS.extend(
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+)
 CORS_ALLOW_CREDENTIALS = True
 
 # Needed for Django admin login / CSRF over https on Render
